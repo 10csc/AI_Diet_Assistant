@@ -2,8 +2,6 @@
 
 ## 启动项目
 
-![image-20260427154905744](C:\Users\FANGL\AppData\Roaming\Typora\typora-user-images\image-20260427154905744.png)
-
 双击**启动项目.exe**启动项目，启动后会在终端运行，浏览器会打开网页。
 浏览器监听端口为：8080
 
