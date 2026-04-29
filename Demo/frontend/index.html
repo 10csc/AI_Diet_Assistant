@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 饮食推荐助手</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand-card">
+                <div class="brand-badge">AI 饮食助手</div>
+                <h1>Diet Chat</h1>
+                <p>像 DeepSeek 一样聊天，结合天气、体征和偏好生成饮食建议。</p>
+            </div>
+
+            <section class="sidebar-card settings-card">
+                <div class="section-head">
+                    <h2>快捷设置</h2>
+                    <div class="section-actions">
+                        <button id="open_history_sidebar" type="button" class="ghost-btn history-open-btn">历史对话</button>
+                        <span class="section-tip">左下角分页切换</span>
+                    </div>
+                </div>
+                <div class="settings-tabs">
+                    <button type="button" class="settings-tab active" data-panel="weather_panel">天气</button>
+                    <button type="button" class="settings-tab" data-panel="profile_panel">个人信息</button>
+                    <button type="button" class="settings-tab" data-panel="model_panel">模型</button>
+                </div>
+
+                <div id="weather_panel" class="settings-panel active">
+                    <div class="form-stack">
+                        <label for="weather_ak">百度天气 AK</label>
+                        <input type="text" id="weather_ak" placeholder="请输入百度天气 AK">
+                    </div>
+                    <div class="form-stack">
+                        <label for="weather_city">城市</label>
+                        <select id="weather_city">
+                            <option value="">正在加载城市列表...</option>
+                        </select>
+                    </div>
+                    <button id="fetch_weather" type="button" class="primary-btn full-width">获取天气</button>
+                    <div id="weather_result" class="weather-result">等待获取天气...</div>
+                </div>
+
+                <div id="profile_panel" class="settings-panel">
+                    <div class="form-grid">
+                        <div class="form-stack">
+                            <label for="age">年龄</label>
+                            <input type="number" id="age" placeholder="请输入年龄">
+                        </div>
+                        <div class="form-stack">
+                            <label for="gender">性别</label>
+                            <select id="gender">
+                                <option value="男">男</option>
+                                <option value="女">女</option>
+                            </select>
+                        </div>
+                        <div class="form-stack">
+                            <label for="height">身高(cm)</label>
+                            <input type="number" id="height" placeholder="170">
+                        </div>
+                        <div class="form-stack">
+                            <label for="weight">体重(kg)</label>
+                            <input type="number" id="weight" placeholder="52">
+                        </div>
+                    </div>
+                    <div class="form-stack">
+                        <label for="occupation">职业</label>
+                        <input type="text" id="occupation" placeholder="例如：学生">
+                    </div>
+                    <div class="form-stack">
+                        <label for="taste">口味偏好</label>
+                        <input type="text" id="taste" placeholder="例如：偏辣、清淡">
+                    </div>
+                    <div class="form-stack">
+                        <label for="health">健康状况</label>
+                        <input type="text" id="health" placeholder="例如：口腔溃疡、胃不舒服">
+                    </div>
+                </div>
+
+                <div id="model_panel" class="settings-panel">
+                    <div class="form-stack">
+                        <label for="primary_type">一级模型类型</label>
+                        <select id="primary_type">
+                            <option value="deepseek">DeepSeek API</option>
+                            <option value="ollama">Ollama 本地</option>
+                        </select>
+                    </div>
+                    <div class="form-stack">
+                        <label for="primary_model">一级模型</label>
+                        <input type="text" id="primary_model" placeholder="deepseek-chat" value="deepseek-chat">
+                    </div>
+                    <div id="primary_deepseek_config" class="inline-block">
+                        <div class="form-stack">
+                            <label for="primary_apikey">一级 API Key</label>
+                            <input type="text" id="primary_apikey" placeholder="sk-xxx">
+                        </div>
+                    </div>
+
+                    <label class="toggle-row">
+                        <input type="checkbox" id="use_secondary">
+                        <span>启用二级模型做菜单生成</span>
+                    </label>
+
+                    <div id="secondary_config" class="sub-config">
+                        <div class="form-stack">
+                            <label for="secondary_type">二级模型类型</label>
+                            <select id="secondary_type">
+                                <option value="deepseek">DeepSeek API</option>
+                                <option value="ollama">Ollama 云端</option>
+                            </select>
+                        </div>
+                        <div id="deepseek_config">
+                            <div class="form-stack">
+                                <label for="deepseek_model">DeepSeek 模型</label>
+                                <input type="text" id="deepseek_model" placeholder="deepseek-chat" value="deepseek-chat">
+                            </div>
+                            <div class="form-stack">
+                                <label for="deepseek_apikey">DeepSeek API Key</label>
+                                <input type="text" id="deepseek_apikey" placeholder="sk-xxx" value="sk-300a7b3692284676bc5acdf4eccb909a">
+                            </div>
+                        </div>
+                        <div id="ollama_cloud_config">
+                            <div class="form-stack">
+                                <label for="ollama_model">Ollama 模型</label>
+                                <input type="text" id="ollama_model" placeholder="例如：llama3:70b">
+                            </div>
+                            <div class="form-stack">
+                                <label for="ollama_server">Ollama 服务器</label>
+                                <input type="text" id="ollama_server" placeholder="http://localhost:11434">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </aside>
+
+        <div id="history_sidebar_backdrop" class="history-sidebar-backdrop" aria-hidden="true"></div>
+        <aside id="history_sidebar_drawer" class="history-sidebar-drawer" aria-hidden="true">
+            <div class="sidebar-card history-sidebar-card">
+                <div class="history-sidebar-topbar">
+                    <button id="close_history_sidebar" type="button" class="ghost-btn">收起历史</button>
+                    <div class="section-actions">
+                        <button id="refresh_history" type="button" class="ghost-btn">刷新</button>
+                        <button id="new_chat" type="button" class="primary-btn compact-btn">新建对话</button>
+                    </div>
+                </div>
+                <div class="history-sidebar-head">
+                    <div class="brand-badge">会话中心</div>
+                    <h2>历史对话</h2>
+                    <p>这里集中展示全部对话记录，平时默认收起，需要时再展开查看。</p>
+                </div>
+                <div id="history_list" class="history-list">暂无历史记录</div>
+            </div>
+        </aside>
+
+        <main class="chat-shell">
+            <header class="chat-header">
+                <div>
+                    <h2>饮食对话</h2>
+                    <p>告诉我你现在的身体状态、天气或想吃什么，我会给出菜单建议。</p>
+                </div>
+            </header>
+
+            <section id="chat_messages" class="chat-messages"></section>
+
+            <footer class="composer">
+                <div class="composer-box">
+                    <textarea id="user_input" rows="1" placeholder="例如：今天有点上火，晚上适合吃什么？"></textarea>
+                    <div class="composer-actions">
+                        <span class="composer-tip">Enter 发送，Shift + Enter 换行</span>
+                        <button id="submit_btn" type="button" class="primary-btn">发送</button>
+                    </div>
+                </div>
+            </footer>
+        </main>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

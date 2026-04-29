@@ -1,0 +1,216 @@
+{
+    "weather_api": {
+        "ak": "",
+        "base_url": "https://api.map.baidu.com/weather/v1/",
+        "district_id": "510100",
+        "city_name": "成都市",
+        "location": "成都市",
+        "cached_weather": {
+            "district_id": "510100",
+            "location": {
+                "country": "中国",
+                "province": "四川省",
+                "city": "成都市",
+                "name": "成都市",
+                "id": "510100"
+            },
+            "now": {
+                "temperature": 20,
+                "feels_like": 20,
+                "humidity": 80,
+                "condition": "轻雾",
+                "wind_dir": "南风",
+                "wind_class": "2级",
+                "precipitation_1h": 0,
+                "visibility": 8200,
+                "clouds": 95,
+                "air_quality": {
+                    "aqi": 72,
+                    "pm25": 46,
+                    "pm10": 60,
+                    "no2": 39,
+                    "so2": 6,
+                    "o3": 23,
+                    "co": 0.8
+                },
+                "uptime": "20260427102000"
+            },
+            "forecasts": [
+                {
+                    "text_day": "多云",
+                    "text_night": "阴",
+                    "high": 27,
+                    "low": 16,
+                    "wc_day": "<3级",
+                    "wd_day": "静风",
+                    "wc_night": "<3级",
+                    "wd_night": "静风",
+                    "uvi": 4,
+                    "pressure": 951,
+                    "dpt": 16,
+                    "date": "2026-04-27",
+                    "week": "星期一"
+                },
+                {
+                    "text_day": "小雨",
+                    "text_night": "阴",
+                    "high": 19,
+                    "low": 14,
+                    "wc_day": "<3级",
+                    "wd_day": "静风",
+                    "wc_night": "<3级",
+                    "wd_night": "静风",
+                    "uvi": 2,
+                    "pressure": 952,
+                    "dpt": 13,
+                    "date": "2026-04-28",
+                    "week": "星期二"
+                },
+                {
+                    "text_day": "多云",
+                    "text_night": "多云",
+                    "high": 25,
+                    "low": 15,
+                    "wc_day": "<3级",
+                    "wd_day": "静风",
+                    "wc_night": "<3级",
+                    "wd_night": "静风",
+                    "uvi": 6,
+                    "pressure": 954,
+                    "dpt": 11,
+                    "date": "2026-04-29",
+                    "week": "星期三"
+                },
+                {
+                    "text_day": "雨",
+                    "text_night": "阴",
+                    "high": 24,
+                    "low": 17,
+                    "wc_day": "<3级",
+                    "wd_day": "东南风",
+                    "wc_night": "<3级",
+                    "wd_night": "东北风",
+                    "wind_angle_day": 115,
+                    "wind_angle_night": 67,
+                    "uvi": 4,
+                    "pressure": 955,
+                    "dpt": 12,
+                    "date": "2026-04-30",
+                    "week": "星期四"
+                },
+                {
+                    "text_day": "阴",
+                    "text_night": "阴",
+                    "high": 26,
+                    "low": 15,
+                    "wc_day": "<3级",
+                    "wd_day": "东北风",
+                    "wc_night": "<3级",
+                    "wd_night": "东北风",
+                    "wind_angle_day": 60,
+                    "wind_angle_night": 37,
+                    "uvi": 3,
+                    "pressure": 950,
+                    "dpt": 14,
+                    "date": "2026-05-01",
+                    "week": "星期五"
+                },
+                {
+                    "text_day": "阴",
+                    "text_night": "阴",
+                    "high": 24,
+                    "low": 16,
+                    "wc_day": "<3级",
+                    "wd_day": "西南风",
+                    "wc_night": "<3级",
+                    "wd_night": "东南风",
+                    "wind_angle_day": 218,
+                    "wind_angle_night": 124,
+                    "uvi": 3,
+                    "pressure": 952,
+                    "dpt": 12,
+                    "date": "2026-05-02",
+                    "week": "星期六"
+                },
+                {
+                    "text_day": "雨",
+                    "text_night": "阴",
+                    "high": 26,
+                    "low": 19,
+                    "wc_day": "<3级",
+                    "wd_day": "南风",
+                    "wc_night": "<3级",
+                    "wd_night": "东南风",
+                    "wind_angle_day": 186,
+                    "wind_angle_night": 146,
+                    "uvi": 3,
+                    "pressure": 951,
+                    "dpt": 13,
+                    "date": "2026-05-03",
+                    "week": "星期日"
+                }
+            ],
+            "indexes": [
+                {
+                    "name": "晨练指数",
+                    "brief": "不宜",
+                    "detail": "有降水，建议在室内做适当锻炼。"
+                },
+                {
+                    "name": "洗车指数",
+                    "brief": "不适宜",
+                    "detail": "两天内有雨，雨水和泥水会弄脏爱车。"
+                },
+                {
+                    "name": "感冒指数",
+                    "brief": "较易发",
+                    "detail": "湿度大，较易感冒"
+                },
+                {
+                    "name": "紫外线指数",
+                    "brief": "弱",
+                    "detail": "辐射较弱，涂擦SPF12-15、PA+护肤品。"
+                },
+                {
+                    "name": "穿衣指数",
+                    "brief": "舒适",
+                    "detail": "建议穿长袖衬衫单裤等服装。"
+                },
+                {
+                    "name": "运动指数",
+                    "brief": "较不宜",
+                    "detail": "有降水，推荐您在室内进行休闲运动。"
+                }
+            ],
+            "alerts": []
+        }
+    },
+    "models": {
+        "primary": {
+            "type": "ollama",
+            "model": "gpt-oss:120b-cloud",
+            "api_key": ""
+        },
+        "secondary": {
+            "type": "ollama",
+            "model": "gpt-oss:120b-cloud",
+            "api_key": "",
+            "ollama_server": "http://localhost:11434",
+            "enabled": true
+        }
+    },
+    "server": {
+        "port": 8080,
+        "static_dir": "./frontend"
+    },
+    "python_script": "../AI_Demo/main.py",
+    "user_profile": {
+        "age": "25",
+        "gender": "男",
+        "height": "170",
+        "weight": "52",
+        "occupation": "学生",
+        "taste": "",
+        "health": ""
+    }
+}
