@@ -1039,6 +1039,9 @@ std::string get_mime_type(const std::string& path) {
     if (path.size() >= 4 && path.substr(path.size() - 4) == ".css") {
         return "text/css; charset=utf-8";
     }
+    if (path.size() >= 5 && path.substr(path.size() - 5) == ".webp") {
+        return "image/webp";
+    }
     return "text/html; charset=utf-8";
 }
 
@@ -1073,6 +1076,10 @@ std::string map_static_file(const std::string& static_dir, const std::string& pa
     }
     if (path == "/style.css") {
         return static_dir + "/style.css";
+    }
+    if (path.rfind("/image/", 0) == 0 && path.find("..") == std::string::npos) {
+        const std::string project_root = dirname(dirname(static_dir));
+        return join_path(project_root, path.substr(1));
     }
     return "";
 }

@@ -515,13 +515,24 @@ async function submitRequest() {
             user_input: userInput,
             local_output: result.local_output,
             cloud_output: result.cloud_output,
+            interrupt_code: result.interrupt_code || '',
+            interrupt_image: result.interrupt_image || '',
             conversation_id: currentConversation.id,
             conversation_title: currentConversation.title
         };
 
         currentConversation.messages.push(turn);
         currentConversation.updatedAt = turn.timestamp;
-        loadingMessage.querySelector('.message-body').innerHTML = buildAssistantReply(result.local_output, result.cloud_output);
+        const isInterrupt = isInterruptPayload(result.cloud_output, result.interrupt_code || '');
+        if (isInterrupt) {
+            loadingMessage.classList.add('interrupt-message');
+        }
+        loadingMessage.querySelector('.message-body').innerHTML = buildAssistantReply(
+            result.local_output,
+            result.cloud_output,
+            result.interrupt_code || '',
+            result.interrupt_image || ''
+        );
         loadingMessage.classList.remove('loading');
         await loadHistory(currentConversation.key);
     } catch (error) {
@@ -592,6 +603,8 @@ function normalizeHistoryConversations(items) {
             user_input: record.user_input || '',
             local_output: record.local_output || '',
             cloud_output: record.cloud_output,
+            interrupt_code: record.interrupt_code || record.cloud_output?.interrupt_code || '',
+            interrupt_image: record.interrupt_image || record.cloud_output?.image_url || '',
             conversation_id: conversationId,
             conversation_title: record.conversation_title || conversation.title
         });
@@ -757,7 +770,16 @@ function renderCurrentConversation() {
 
     currentConversation.messages.forEach((message) => {
         appendMessage('user', `<p>${renderPlainText(message.user_input || '')}</p>`);
-        appendMessage('assistant', buildAssistantReply(message.local_output, message.cloud_output));
+        appendMessage(
+            'assistant',
+            buildAssistantReply(
+                message.local_output,
+                message.cloud_output,
+                message.interrupt_code || '',
+                message.interrupt_image || ''
+            ),
+            { interruptOnly: isInterruptPayload(message.cloud_output, message.interrupt_code || '') }
+        );
     });
 }
 
@@ -782,12 +804,16 @@ function buildConversationSummary(conversation) {
     if (!lastMessage) {
         return conversation.isDraft ? '等待发送第一条消息' : '暂无摘要';
     }
-    return formatHistorySummary(lastMessage.cloud_output, lastMessage.local_output);
+    return formatHistorySummary(lastMessage.cloud_output, lastMessage.local_output, lastMessage.interrupt_code || '');
 }
 
 function buildConversationContext(messages) {
     return messages.slice(-6).map((message, index) => {
-        const assistantText = buildAssistantContextText(message.local_output, message.cloud_output);
+        const assistantText = buildAssistantContextText(
+            message.local_output,
+            message.cloud_output,
+            message.interrupt_code || ''
+        );
         return [
             `第${index + 1}轮用户：${message.user_input || ''}`,
             `第${index + 1}轮助手：${assistantText}`
@@ -795,20 +821,40 @@ function buildConversationContext(messages) {
     }).join('\n\n');
 }
 
-function buildAssistantContextText(localOutput, cloudOutput) {
+function isInterruptPayload(cloudOutput, interruptCode = '') {
+    return interruptCode === 'speechless'
+        || (cloudOutput && typeof cloudOutput === 'object' && (
+            cloudOutput.mode === 'interrupt' || cloudOutput.interrupt_code === 'speechless'
+        ));
+}
+
+function buildAssistantContextText(localOutput, cloudOutput, interruptCode = '') {
+    if (isInterruptPayload(cloudOutput, interruptCode)) {
+        return '输入校验未通过，本轮未进入模型推理';
+    }
     const sections = [];
+    const primaryView = parsePrimaryDisplay(localOutput);
     if (typeof cloudOutput === 'string' && cloudOutput.trim()) {
         sections.push(`菜单回复：${cloudOutput.trim()}`);
     } else if (cloudOutput && typeof cloudOutput === 'object' && cloudOutput.mode !== 'only_local') {
+        const mainDish = cloudOutput.主菜 || {};
+        const sideDishNames = Array.isArray(cloudOutput.配菜)
+            ? cloudOutput.配菜.map((item) => item?.菜名).filter(Boolean)
+            : [];
         sections.push([
-            cloudOutput.具体菜名,
-            cloudOutput.所用主要食材,
-            cloudOutput.推荐理由
+            mainDish.菜名,
+            mainDish.食材,
+            sideDishNames.length ? `配菜：${sideDishNames.join('、')}` : '',
+            mainDish.推荐理由
         ].filter(Boolean).join('；'));
     }
 
-    if (localOutput) {
-        sections.push(`提示词优化：${localOutput}`);
+    if (primaryView.optimizedPrompt) {
+        sections.push(`优化提示词：${primaryView.optimizedPrompt}`);
+    }
+
+    if (primaryView.foodNames.length > 0) {
+        sections.push(`食材推荐：${primaryView.foodNames.join('、')}`);
     }
 
     return sections.filter(Boolean).join('\n') || '无';
@@ -826,19 +872,28 @@ function buildPersonalInfoPayload() {
     };
 }
 
-function buildAssistantReply(localOutput, cloudOutput) {
+function buildAssistantReply(localOutput, cloudOutput, interruptCode = '', interruptImage = '') {
+    if (isInterruptPayload(cloudOutput, interruptCode)) {
+        const imageUrl = interruptImage || cloudOutput?.image_url || '/image/speechless.webp';
+        return buildInterruptReply(imageUrl);
+    }
+
     const cards = [];
+    const primaryView = parsePrimaryDisplay(localOutput);
 
     if (cloudOutput && typeof cloudOutput === 'object' && cloudOutput.mode !== 'only_local') {
+        const mainDish = cloudOutput.主菜 || {};
+        const sideDishes = Array.isArray(cloudOutput.配菜) ? cloudOutput.配菜.slice(0, 2) : [];
         cards.push(`
             <div class="reply-card">
                 <h3>本次菜单建议</h3>
                 <div class="reply-list">
-                    <div class="reply-list-item"><strong>具体菜名：</strong>${escapeHtml(cloudOutput.具体菜名 || '-')}</div>
-                    <div class="reply-list-item"><strong>主要食材：</strong>${escapeHtml(cloudOutput.所用主要食材 || '-')}</div>
-                    <div class="reply-list-item"><strong>烹饪方式：</strong>${escapeHtml(cloudOutput.烹饪方式 || '-')}</div>
-                    <div class="reply-list-item"><strong>营养价值：</strong>${escapeHtml(cloudOutput.营养价值 || '-')}</div>
-                    <div class="reply-list-item"><strong>推荐理由：</strong>${escapeHtml(cloudOutput.推荐理由 || '-')}</div>
+                    <div class="reply-list-item"><strong>主菜：</strong>${escapeHtml(mainDish.菜名 || '-')}</div>
+                    <div class="reply-list-item"><strong>主菜食材：</strong>${escapeHtml(mainDish.食材 || '-')}</div>
+                    <div class="reply-list-item"><strong>主菜做法：</strong>${escapeHtml(mainDish.烹饪方式 || '-')}</div>
+                    <div class="reply-list-item"><strong>主菜营养价值：</strong>${escapeHtml(mainDish.营养价值 || '-')}</div>
+                    <div class="reply-list-item"><strong>主菜推荐理由：</strong>${escapeHtml(mainDish.推荐理由 || '-')}</div>
+                    <div class="reply-list-item"><strong>配菜：</strong>${sideDishes.length ? sideDishes.map((item) => `${escapeHtml(item.菜名 || '-') }（${escapeHtml(item.食材 || '-')}）`).join('、') : '暂无配菜'}</div>
                 </div>
             </div>
         `);
@@ -860,8 +915,11 @@ function buildAssistantReply(localOutput, cloudOutput) {
 
     cards.push(`
         <div class="reply-card">
-            <h3>提示词优化结果</h3>
-            <p>${renderPlainText(localOutput || '暂无预处理结果')}</p>
+            <h3>一级模型结果</h3>
+            <div class="reply-list">
+                <div class="reply-list-item"><strong>优化提示词：</strong>${renderInlineText(primaryView.optimizedPrompt || '暂无优化提示词')}</div>
+                <div class="reply-list-item"><strong>食材推荐结果：</strong>${escapeHtml(primaryView.foodNames.length ? primaryView.foodNames.join('、') : '暂无食材推荐')}</div>
+            </div>
         </div>
     `);
 
@@ -871,10 +929,21 @@ function buildAssistantReply(localOutput, cloudOutput) {
     `;
 }
 
+function buildInterruptReply(imageUrl) {
+    return `
+        <div class="interrupt-only">
+            <img src="${escapeHtml(imageUrl)}" alt="speechless" class="interrupt-image">
+        </div>
+    `;
+}
+
 function appendMessage(role, html, options = {}) {
     const chatMessages = document.getElementById('chat_messages');
     const message = document.createElement('div');
     message.className = `message ${role}${options.loading ? ' loading' : ''}`;
+    if (options.interruptOnly) {
+        message.classList.add('interrupt-message');
+    }
     message.innerHTML = `
         <div class="message-bubble">
             <div class="message-role">${role === 'user' ? '你' : '饮食助手'}</div>
@@ -926,20 +995,83 @@ function buildWeatherSummary(weather) {
     ].filter(Boolean).join('\n');
 }
 
-function formatHistorySummary(cloudOutput, localOutput) {
+function formatHistorySummary(cloudOutput, localOutput, interruptCode = '') {
+    const primaryView = parsePrimaryDisplay(localOutput);
     if (typeof cloudOutput === 'string' && cloudOutput.trim()) {
         return cloudOutput.trim();
     }
     if (cloudOutput && typeof cloudOutput === 'object') {
-        if (cloudOutput.mode === 'only_local') {
-            return '仅做了提示词优化';
+        if (isInterruptPayload(cloudOutput, interruptCode || cloudOutput.interrupt_code || '')) {
+            return '输入校验未通过';
         }
+        if (cloudOutput.mode === 'only_local') {
+            return primaryView.foodNames.length > 0
+                ? `食材推荐：${primaryView.foodNames.slice(0, 3).join('、')}`
+                : '仅做了提示词优化';
+        }
+        const mainDish = cloudOutput.主菜 || {};
         return [
-            cloudOutput.具体菜名,
-            cloudOutput.推荐理由
-        ].filter(Boolean).join(' | ') || localOutput || '无摘要';
+            mainDish.菜名,
+            mainDish.推荐理由
+        ].filter(Boolean).join(' | ') || primaryView.optimizedPrompt || '无摘要';
     }
-    return localOutput || '无摘要';
+    if (interruptCode === 'speechless') {
+        return '输入校验未通过';
+    }
+    return primaryView.optimizedPrompt || '无摘要';
+}
+
+function parsePrimaryDisplay(localOutput) {
+    const text = String(localOutput || '').trim();
+    if (!text) {
+        return { optimizedPrompt: '', foodNames: [] };
+    }
+
+    const optimizedPrompt = extractSingleLineSection(text, '优化提示词');
+    const foodNames = extractRecommendedFoodNames(text);
+
+    return {
+        optimizedPrompt,
+        foodNames
+    };
+}
+
+function extractSingleLineSection(text, title) {
+    const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`${escapedTitle}：([^\\n]*)`);
+    const match = text.match(regex);
+    return match ? match[1].trim() : '';
+}
+
+function extractRecommendedFoodNames(text) {
+    const names = [];
+    const seen = new Set();
+    const pushName = (value) => {
+        const name = String(value || '').trim();
+        if (!name || seen.has(name)) {
+            return;
+        }
+        seen.add(name);
+        names.push(name);
+    };
+
+    const bulletRegex = /^-\s*([^|\n]+?)\s*\|/gm;
+    let bulletMatch = bulletRegex.exec(text);
+    while (bulletMatch) {
+        pushName(bulletMatch[1]);
+        bulletMatch = bulletRegex.exec(text);
+    }
+
+    if (names.length === 0) {
+        const inlineRegex = /食材=([^；\n]+)/g;
+        let inlineMatch = inlineRegex.exec(text);
+        while (inlineMatch) {
+            pushName(inlineMatch[1]);
+            inlineMatch = inlineRegex.exec(text);
+        }
+    }
+
+    return names.slice(0, 8);
 }
 
 function getDateGroupLabel(value) {
@@ -985,6 +1117,10 @@ function autoResizeTextarea(textarea) {
 
 function renderPlainText(text) {
     return escapeHtml(text == null ? '' : String(text)).replace(/\n/g, '<br>');
+}
+
+function renderInlineText(text) {
+    return escapeHtml(text == null ? '' : String(text));
 }
 
 function buildReadableError(message) {

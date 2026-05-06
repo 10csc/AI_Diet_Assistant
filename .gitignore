@@ -1,2 +1,36 @@
+# ---- Python 虚拟环境 ----
 ai_diet_env/
+_env/
+.venv/
+venv/
+
+# ---- 编译中间产物 ----
 build/
+*.obj
+*.o
+__pycache__/
+*.pyc
+
+# ---- 源码文件（exe 和 cs 源码都保留，不排除） ----
+
+# ---- 本地调试记录 ----
+信息记录.txt
+logs/
+
+# ---- 运行时日志（自动生成，不提交） ----
+AI_Demo/logs/
+
+# ---- 知识库缓存（由首次运行自动生成） ----
+AI_Demo/data/knowledge_base/
+
+# ---- 图片资源（非代码，体积大） ----
+
+
+# ---- IDE / 系统 ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

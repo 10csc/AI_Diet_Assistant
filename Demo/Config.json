@@ -1,181 +1,9 @@
 {
     "weather_api": {
-        "ak": "hd5muZ2SbUO2GRt3BTVArlfcpqMX24FO",
+        "ak": "your_baidu_api_key_here",
         "base_url": "https://api.map.baidu.com/weather/v1/",
-        "district_id": "510100",
-        "city_name": "成都市",
-        "location": "成都市",
-        "cached_weather": {
-            "district_id": "510100",
-            "location": {
-                "country": "中国",
-                "province": "四川省",
-                "city": "成都市",
-                "name": "成都市",
-                "id": "510100"
-            },
-            "now": {
-                "temperature": 21,
-                "feels_like": 21,
-                "humidity": 50,
-                "condition": "多云",
-                "wind_dir": "南风",
-                "wind_class": "1级",
-                "precipitation_1h": 0,
-                "visibility": 30000,
-                "clouds": 49,
-                "air_quality": {
-                    "aqi": 28,
-                    "pm25": 15,
-                    "pm10": 18,
-                    "no2": 19,
-                    "so2": 4,
-                    "o3": 87,
-                    "co": 0.5
-                },
-                "uptime": "20260429133000"
-            },
-            "forecasts": [
-                {
-                    "text_day": "多云",
-                    "text_night": "多云",
-                    "high": 24,
-                    "low": 13,
-                    "wc_day": "<3级",
-                    "wd_day": "静风",
-                    "wc_night": "<3级",
-                    "wd_night": "静风",
-                    "uvi": 7,
-                    "pressure": 958,
-                    "dpt": 11,
-                    "date": "2026-04-29",
-                    "week": "星期三"
-                },
-                {
-                    "text_day": "小雨",
-                    "text_night": "小雨",
-                    "high": 24,
-                    "low": 13,
-                    "wc_day": "<3级",
-                    "wd_day": "静风",
-                    "wc_night": "<3级",
-                    "wd_night": "静风",
-                    "uvi": 5,
-                    "pressure": 953,
-                    "dpt": 13,
-                    "date": "2026-04-30",
-                    "week": "星期四"
-                },
-                {
-                    "text_day": "多云",
-                    "text_night": "小雨",
-                    "high": 23,
-                    "low": 15,
-                    "wc_day": "<3级",
-                    "wd_day": "静风",
-                    "wc_night": "<3级",
-                    "wd_night": "静风",
-                    "uvi": 6,
-                    "pressure": 950,
-                    "dpt": 16,
-                    "date": "2026-05-01",
-                    "week": "星期五"
-                },
-                {
-                    "text_day": "阴",
-                    "text_night": "小雨",
-                    "high": 23,
-                    "low": 15,
-                    "wc_day": "<3级",
-                    "wd_day": "静风",
-                    "wc_night": "<3级",
-                    "wd_night": "静风",
-                    "uvi": 4,
-                    "pressure": 954,
-                    "dpt": 11,
-                    "date": "2026-05-02",
-                    "week": "星期六"
-                },
-                {
-                    "text_day": "阴",
-                    "text_night": "多云",
-                    "high": 24,
-                    "low": 14,
-                    "wc_day": "<3级",
-                    "wd_day": "静风",
-                    "wc_night": "<3级",
-                    "wd_night": "静风",
-                    "uvi": 3,
-                    "pressure": 957,
-                    "dpt": 9,
-                    "date": "2026-05-03",
-                    "week": "星期日"
-                },
-                {
-                    "text_day": "多云",
-                    "text_night": "小雨",
-                    "high": 25,
-                    "low": 16,
-                    "wc_day": "<3级",
-                    "wd_day": "静风",
-                    "wc_night": "<3级",
-                    "wd_night": "静风",
-                    "uvi": 7,
-                    "pressure": 954,
-                    "dpt": 11,
-                    "date": "2026-05-04",
-                    "week": "星期一"
-                },
-                {
-                    "text_day": "多云",
-                    "text_night": "小雨",
-                    "high": 25,
-                    "low": 16,
-                    "wc_day": "<3级",
-                    "wd_day": "静风",
-                    "wc_night": "<3级",
-                    "wd_night": "静风",
-                    "uvi": 7,
-                    "pressure": 953,
-                    "dpt": 12,
-                    "date": "2026-05-05",
-                    "week": "星期二"
-                }
-            ],
-            "indexes": [
-                {
-                    "name": "晨练指数",
-                    "brief": "适宜",
-                    "detail": "天气不错，空气清新，是晨练的好时机。"
-                },
-                {
-                    "name": "洗车指数",
-                    "brief": "不适宜",
-                    "detail": "两天内有雨，雨水和泥水会弄脏爱车。"
-                },
-                {
-                    "name": "感冒指数",
-                    "brief": "少发",
-                    "detail": "无明显降温，感冒机率较低。"
-                },
-                {
-                    "name": "紫外线指数",
-                    "brief": "强",
-                    "detail": "涂擦 SPF20左右，PA++，避免强光。"
-                },
-                {
-                    "name": "穿衣指数",
-                    "brief": "舒适",
-                    "detail": "建议穿长袖衬衫单裤等服装。"
-                },
-                {
-                    "name": "运动指数",
-                    "brief": "较适宜",
-                    "detail": "户外运动请注意防晒。"
-                }
-            ],
-            "alerts": []
-        }
+        "district_id": "your_district_id",
+        "city_name": "your_city"
     },
     "models": {
         "primary": {
@@ -184,9 +12,9 @@
             "api_key": ""
         },
         "secondary": {
-            "type": "ollama",
-            "model": "gpt-oss:120b-cloud",
-            "api_key": "",
+            "type": "deepseek",
+            "model": "deepseek-chat",
+            "api_key": "your_deepseek_api_key_here",
             "ollama_server": "http://localhost:11434",
             "enabled": true
         }
@@ -197,11 +25,11 @@
     },
     "python_script": "../AI_Demo/main.py",
     "user_profile": {
-        "age": "25",
-        "gender": "男",
-        "height": "170",
-        "weight": "52",
-        "occupation": "学生",
+        "age": "",
+        "gender": "",
+        "height": "",
+        "weight": "",
+        "occupation": "",
         "taste": "",
         "health": ""
     }

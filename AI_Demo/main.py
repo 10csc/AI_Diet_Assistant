@@ -6,9 +6,10 @@ import os
 import time
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from models.ollama_import import preprocess_with_ollama
 from models.cloudmodel_import import get_diet_recommendation, preprocess_with_deepseek
+from rag import build_rag_context, build_secondary_prompt, format_local_analysis
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(BASE_DIR, "logs")
@@ -56,6 +57,9 @@ PREPROCESSOR_MAP = {
     "ollama:": preprocess_with_ollama,
     "deepseek:": preprocess_with_deepseek,
 }
+
+INTERRUPT_CODE_SPEECHLESS = "speechless"
+INTERRUPT_IMAGE_URL = "/image/speechless.webp"
 
 
 # ---- 工具函数 ----
@@ -229,6 +233,189 @@ def preprocess_input(raw_input: str, primary_model_id: str) -> str:
     raise ValueError(f"不支持的一级模型: {primary_model_id}")
 
 
+def _extract_json_candidate(text: str) -> str:
+    content = text.strip()
+    if not content:
+        return ""
+    if content.startswith("{") and content.endswith("}"):
+        return content
+    start = content.find("{")
+    end = content.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return content[start:end + 1]
+    return ""
+
+
+def _to_string_list(value) -> list[str]:
+    if isinstance(value, list):
+        result = []
+        for item in value:
+            text = str(item).strip()
+            if text:
+                result.append(text)
+        return result
+    if isinstance(value, str):
+        candidate = value.strip()
+        if not candidate:
+            return []
+        parts = candidate.replace("；", "，").replace("、", "，").split("，")
+        return [part.strip() for part in parts if part.strip()]
+    return []
+
+
+def _load_personal_info_object(personal_info_text: str) -> dict[str, Any]:
+    if not personal_info_text:
+        return {}
+    try:
+        payload = json.loads(personal_info_text)
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _parse_float_value(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _parse_int_value(value: Any) -> Optional[int]:
+    parsed = _parse_float_value(value)
+    if parsed is None:
+        return None
+    if parsed != int(parsed):
+        return None
+    return int(parsed)
+
+
+def _normalize_gender_value(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    gender_map = {
+        "男": "男",
+        "男性": "男",
+        "male": "男",
+        "m": "男",
+        "女": "女",
+        "女性": "女",
+        "female": "女",
+        "f": "女",
+    }
+    return gender_map.get(text, "")
+
+
+def validate_personal_info_fields(personal_info_text: str) -> list[str]:
+    profile = _load_personal_info_object(personal_info_text)
+    invalid_fields: list[str] = []
+
+    age_raw = profile.get("age")
+    age_value = _parse_int_value(age_raw)
+    if str(age_raw).strip():
+        if age_value is None or not (1 <= age_value <= 120):
+            invalid_fields.append("age")
+
+    gender_raw = profile.get("gender")
+    if str(gender_raw).strip():
+        if not _normalize_gender_value(gender_raw):
+            invalid_fields.append("gender")
+
+    height_raw = profile.get("height")
+    height_value = _parse_float_value(height_raw)
+    if str(height_raw).strip():
+        if height_value is None or not (50 <= height_value <= 260):
+            invalid_fields.append("height")
+
+    weight_raw = profile.get("weight")
+    weight_value = _parse_float_value(weight_raw)
+    if str(weight_raw).strip():
+        if weight_value is None or not (10 <= weight_value <= 500):
+            invalid_fields.append("weight")
+
+    return invalid_fields
+
+
+def build_interrupt_result(code: str, invalid_fields: Optional[list[str]] = None) -> dict[str, Any]:
+    return {
+        "interrupt_code": code,
+        "interrupt_image": INTERRUPT_IMAGE_URL,
+        "invalid_fields": invalid_fields or [],
+        "local_output": "",
+        "cloud_output": {
+            "mode": "interrupt",
+            "interrupt_code": code,
+            "image_url": INTERRUPT_IMAGE_URL,
+        },
+    }
+
+
+def parse_preprocess_result(raw_output: str) -> dict:
+    if raw_output.strip().lower() == INTERRUPT_CODE_SPEECHLESS:
+        return {"interrupt_code": INTERRUPT_CODE_SPEECHLESS}
+
+    json_candidate = _extract_json_candidate(raw_output)
+    if json_candidate:
+        try:
+            payload = json.loads(json_candidate)
+            if isinstance(payload, dict) and str(payload.get("interrupt_code", "")).strip():
+                return {"interrupt_code": str(payload.get("interrupt_code", "")).strip()}
+        except json.JSONDecodeError:
+            pass
+
+    expected_keys = [
+        "用户画像摘要",
+        "身体状态分析",
+        "心理状态分析",
+        "需重点关注营养素",
+        "饮食限制",
+        "检索关键词",
+        "优化提示词",
+    ]
+    parsed = {}
+    if json_candidate:
+        try:
+            payload = json.loads(json_candidate)
+            if isinstance(payload, dict):
+                parsed = payload
+        except json.JSONDecodeError:
+            parsed = {}
+
+    if not parsed:
+        for line in raw_output.splitlines():
+            if "：" in line:
+                key, value = line.split("：", 1)
+            elif ":" in line:
+                key, value = line.split(":", 1)
+            else:
+                continue
+            key = key.strip().strip("*")
+            value = value.strip()
+            if key in expected_keys and value:
+                parsed[key] = value
+
+    result = {}
+    for key in expected_keys:
+        value = parsed.get(key, [])
+        if key in ("需重点关注营养素", "饮食限制", "检索关键词"):
+            result[key] = _to_string_list(value)
+        else:
+            result[key] = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+
+    if not result["优化提示词"]:
+        result["优化提示词"] = raw_output.strip()
+    if not result["用户画像摘要"]:
+        result["用户画像摘要"] = "用户画像信息已结合输入进行模糊化整理。"
+    if not result["身体状态分析"]:
+        result["身体状态分析"] = "需结合个人信息、天气与当前诉求做综合饮食判断。"
+    if not result["心理状态分析"]:
+        result["心理状态分析"] = "未识别到明确情绪风险时，以稳定能量供给与可持续饮食体验为主。"
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description="饮食推荐助手 - 支持两级模型调用")
     parser.add_argument("--request_file", type=str, default="", help="请求 JSON 文件路径")
@@ -266,6 +453,30 @@ def main():
             resolved["use_secondary"],
         )
 
+        invalid_fields = validate_personal_info_fields(resolved["personal_info"])
+        if invalid_fields:
+            logger.warning("用户个人信息校验未通过，已截断一级模型调用: %s", ",".join(invalid_fields))
+            interrupt_result = build_interrupt_result(INTERRUPT_CODE_SPEECHLESS, invalid_fields)
+            save_to_jsonl(
+                {
+                    "user_input": resolved["user_input"],
+                    "personal_info": resolved["personal_info"],
+                    "weather": resolved["weather"],
+                    "primary_model_id": resolved["primary_model_id"],
+                    "secondary_model_id": resolved["secondary_model_id"],
+                    "use_secondary": resolved["use_secondary"],
+                    "conversation_id": resolved["conversation_id"],
+                    "conversation_title": resolved["conversation_title"],
+                    "conversation_context": resolved["conversation_context"],
+                    "interrupt_code": INTERRUPT_CODE_SPEECHLESS,
+                    "invalid_fields": invalid_fields,
+                    "local_output": interrupt_result["local_output"],
+                    "cloud_output": interrupt_result["cloud_output"],
+                }
+            )
+            print(json.dumps(interrupt_result, ensure_ascii=False, indent=2))
+            return
+
         # 构建完整原始输入
         raw_input = build_raw_input(
             resolved["user_input"],
@@ -275,15 +486,51 @@ def main():
         )
 
         # 步骤1：使用一级模型预处理（带自动重试）
-        local_output = _call_with_retry(
+        raw_preprocess_output = _call_with_retry(
             preprocess_input, [raw_input, resolved["primary_model_id"]]
+        )
+        preprocess_result = parse_preprocess_result(raw_preprocess_output)
+        if preprocess_result.get("interrupt_code") == INTERRUPT_CODE_SPEECHLESS:
+            logger.warning("一级模型判定输入无效，已截断后续流程")
+            interrupt_result = build_interrupt_result(INTERRUPT_CODE_SPEECHLESS)
+            save_to_jsonl(
+                {
+                    "user_input": resolved["user_input"],
+                    "personal_info": resolved["personal_info"],
+                    "weather": resolved["weather"],
+                    "primary_model_id": resolved["primary_model_id"],
+                    "secondary_model_id": resolved["secondary_model_id"],
+                    "use_secondary": resolved["use_secondary"],
+                    "conversation_id": resolved["conversation_id"],
+                    "conversation_title": resolved["conversation_title"],
+                    "conversation_context": resolved["conversation_context"],
+                    "preprocess_raw_output": raw_preprocess_output,
+                    "preprocess_result": preprocess_result,
+                    "interrupt_code": INTERRUPT_CODE_SPEECHLESS,
+                    "local_output": interrupt_result["local_output"],
+                    "cloud_output": interrupt_result["cloud_output"],
+                }
+            )
+            print(json.dumps(interrupt_result, ensure_ascii=False, indent=2))
+            return
+        rag_context = build_rag_context(
+            resolved["user_input"],
+            resolved["personal_info"],
+            resolved["weather"],
+            preprocess_result=preprocess_result,
+        )
+        local_output = format_local_analysis(preprocess_result, rag_context)
+        secondary_prompt = build_secondary_prompt(
+            resolved["user_input"],
+            preprocess_result,
+            rag_context,
         )
 
         if resolved["use_secondary"] and resolved["secondary_model_id"]:
             # 步骤2：使用二级模型生成饮食推荐（带自动重试）
             cloud_output = _call_with_retry(
                 get_diet_recommendation,
-                [local_output],
+                [secondary_prompt],
                 {"model_id": resolved["secondary_model_id"]},
             )
         else:
@@ -303,6 +550,9 @@ def main():
                 "conversation_id": resolved["conversation_id"],
                 "conversation_title": resolved["conversation_title"],
                 "conversation_context": resolved["conversation_context"],
+                "preprocess_raw_output": raw_preprocess_output,
+                "preprocess_result": preprocess_result,
+                "rag_context": rag_context,
                 "local_output": local_output,
                 "cloud_output": cloud_output,
             }

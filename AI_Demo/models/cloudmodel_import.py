@@ -2,6 +2,11 @@ import os
 import json
 import re
 from urllib import error, request
+from .prompt_templates import (
+    PRIMARY_ANALYSIS_PROMPT,
+    PRIMARY_INTERRUPT_CODE,
+    SECONDARY_MENU_PROMPT,
+)
 
 # DeepSeek API 配置
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
@@ -11,11 +16,13 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 OLLAMA_CLOUD_URL = "http://localhost:11434"   # 若调用本地 Ollama 作为“云端”模型，可保留此地址
 
 FIELD_ALIASES = {
-    "具体菜名": ["具体菜名", "菜名", "推荐菜名", "菜品", "推荐菜品", "meal", "dish", "dish_name"],
-    "所用主要食材": ["所用主要食材", "主要食材", "食材", "主要用料", "用料", "ingredients", "main_ingredients"],
-    "烹饪方式": ["烹饪方式", "做法", "制作方式", "烹调方式", "cooking_method", "method"],
-    "营养价值": ["营养价值", "营养分析", "营养说明", "营养特点", "nutrition", "nutritional_value"],
-    "推荐理由": ["推荐理由", "推荐原因", "理由", "原因", "recommendation", "reason"],
+    "主菜": ["主菜", "主菜信息", "main_dish", "mainDish"],
+    "主菜菜名": ["主菜菜名", "具体菜名", "菜名", "推荐菜名", "dish", "dish_name"],
+    "主菜食材": ["主菜食材", "所用主要食材", "主要食材", "食材", "main_ingredients"],
+    "主菜烹饪方式": ["主菜烹饪方式", "烹饪方式", "做法", "制作方式", "method"],
+    "主菜营养价值": ["主菜营养价值", "营养价值", "营养分析", "nutrition"],
+    "主菜推荐理由": ["主菜推荐理由", "推荐理由", "推荐原因", "reason"],
+    "配菜": ["配菜", "配菜列表", "side_dishes", "sideDishes"],
 }
 PREFERRED_CONTAINER_KEYS = [
     "result", "data", "output", "answer", "response", "content",
@@ -52,7 +59,15 @@ def _normalize_recommendation_fields(result) -> dict:
         value = _find_value_from_candidates(candidate_dicts, aliases)
         if not value and source_text:
             value = _find_value_from_text(source_text, aliases)
-        normalized[canonical] = value if value else "信息暂缺"
+        normalized[canonical] = value if value else ([] if canonical == "配菜" else "信息暂缺")
+    normalized["配菜"] = _normalize_side_dishes(candidate_dicts, normalized.get("配菜"))
+    normalized["主菜"] = {
+        "菜名": normalized.get("主菜菜名", "信息暂缺"),
+        "食材": normalized.get("主菜食材", "信息暂缺"),
+        "烹饪方式": normalized.get("主菜烹饪方式", "信息暂缺"),
+        "营养价值": normalized.get("主菜营养价值", "信息暂缺"),
+        "推荐理由": normalized.get("主菜推荐理由", "信息暂缺"),
+    }
     return normalized
 
 
@@ -184,6 +199,51 @@ def _coerce_field_value(candidate) -> str:
     return ""
 
 
+def _normalize_side_dishes(candidate_dicts: list, current_value) -> list[dict]:
+    if isinstance(current_value, list):
+        result = []
+        for item in current_value[:2]:
+            normalized = _normalize_single_side_dish(item)
+            if normalized:
+                result.append(normalized)
+        if result:
+            return result
+    for candidate_dict in candidate_dicts:
+        for key in ("配菜", "配菜列表", "side_dishes", "sideDishes"):
+            value = candidate_dict.get(key)
+            if isinstance(value, list):
+                result = []
+                for item in value[:2]:
+                    normalized = _normalize_single_side_dish(item)
+                    if normalized:
+                        result.append(normalized)
+                if result:
+                    return result
+    return []
+
+
+def _normalize_single_side_dish(item) -> dict | None:
+    if isinstance(item, dict):
+        name = _coerce_field_value(
+            item.get("菜名") or item.get("配菜菜名") or item.get("name") or item.get("dish")
+        )
+        ingredients = _coerce_field_value(
+            item.get("食材") or item.get("配菜食材") or item.get("ingredients")
+        )
+        if name or ingredients:
+            return {"菜名": name or "信息暂缺", "食材": ingredients or "信息暂缺"}
+        return None
+    if isinstance(item, str):
+        text = item.strip()
+        if not text:
+            return None
+        if "：" in text:
+            name, ingredients = text.split("：", 1)
+            return {"菜名": name.strip() or "信息暂缺", "食材": ingredients.strip() or "信息暂缺"}
+        return {"菜名": text, "食材": "信息暂缺"}
+    return None
+
+
 def preprocess_with_deepseek(raw_input: str, model_id: str) -> str:
     if not model_id.startswith("deepseek:"):
         raise ValueError(f"一级模型必须为 deepseek 模型，当前 model_id: {model_id}")
@@ -196,17 +256,7 @@ def preprocess_with_deepseek(raw_input: str, model_id: str) -> str:
     if not api_key:
         raise ValueError("DeepSeek API Key 不能为空")
 
-    system_prompt = (
-        "你是一个文本预处理助手。你的任务是：\n"
-        "1. 接收三类输入：天气情况（非必需）、用户信息（非必需）、用户需求（必需）。\n"
-        "2. 过滤掉用户信息与用户需求中的敏感内容（暴力、色情、政治等）。\n"
-        "3. 将天气状况、用户信息和用户需求中涉及详细个人信息的内容整合并转换为不影响饮食需求分析准确度的模糊信息，确保用户隐私安全。\n"
-        "4. 如果天气信息中包含未来预报（如 forecasts/indexes/alerts），需要综合当前与未来趋势来优化提示词，支持用户提前获取后续饮食建议。\n"
-        "5. 输出中不要暴露具体日期、具体时刻、具体预报发布时间，只保留相对时序描述（如今天/近期/接下来）。\n"
-        "6. 根据用户输入的内容，优化提示词，使其更适合用于后续的大模型处理。\n"
-        "输出格式：只输出转化后的提示词文本，不要输出其他解释。\n"
-        f"用户输入：{raw_input}\n"
-    )
+    system_prompt = PRIMARY_ANALYSIS_PROMPT
 
     payload = {
         "model": model or "deepseek-chat",
@@ -214,7 +264,8 @@ def preprocess_with_deepseek(raw_input: str, model_id: str) -> str:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": raw_input}
         ],
-        "temperature": 0.2
+        "temperature": 0.2,
+        "response_format": {"type": "json_object"},
     }
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -242,11 +293,8 @@ def get_diet_recommendation(
          - deepseek 默认: "deepseek-chat"
          - ollama 默认: "gpt-oss:120b-cloud" (或你已下载的任何模型)
     :return: 包含以下字段的字典：
-             - 具体菜名
-             - 所用主要食材
-             - 烹饪方式
-             - 营养价值
-             - 推荐理由
+             - 主菜
+             - 配菜
     """
     api_key = DEEPSEEK_API_KEY
     ollama_url = OLLAMA_CLOUD_URL
@@ -268,17 +316,7 @@ def get_diet_recommendation(
 
 def _call_deepseek(prompt: str, model: str, api_key: str) -> dict:
     """调用 DeepSeek API"""
-    system_prompt = (
-        "你是一个饮食分析助手，对话不记忆。输入内容包括处理后的用户输入（实时监控）。\n"
-        "输出规则（必须严格遵守）：\n"
-        "1. 以严格 JSON 格式输出，仅输出 JSON 对象，不要输出其他任何文字\n"
-        "2. JSON 字段名必须使用中文，且必须包含以下 5 个字段（缺一不可）：\n"
-        '   "具体菜名"、"所用主要食材"、"烹饪方式"、"营养价值"、"推荐理由"\n'
-        "3. 所有字段值必须使用中文回答\n"
-        "4. 要根据用户输入的信息（包括天气、地区、用户心理和用户健康状况）具体分析后输出\n"
-        "5. 主要查找中国菜式\n"
-        '输出示例：{"具体菜名":"番茄炒蛋","所用主要食材":"番茄、鸡蛋、葱","烹饪方式":"炒","营养价值":"富含维生素C和蛋白质","推荐理由":"酸甜可口，开胃下饭"}'
-    )
+    system_prompt = SECONDARY_MENU_PROMPT
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -305,16 +343,7 @@ def _call_deepseek(prompt: str, model: str, api_key: str) -> dict:
 
 def _call_ollama_cloud(prompt: str, model: str, ollama_url: str) -> dict:
     """调用 Ollama 服务（可本地或远程）作为云端模型"""
-    system_prompt = (
-        "你是一个饮食分析助手。\n"
-        "输出规则（必须严格遵守）：\n"
-        "1. 仅输出一个严格的 JSON 对象，不要输出任何其他文字、代码块标记或说明\n"
-        "2. JSON 字段名必须使用中文，且必须包含且仅包含以下 5 个字段：\n"
-        '   "具体菜名"、"所用主要食材"、"烹饪方式"、"营养价值"、"推荐理由"\n'
-        "3. 所有字段值必须使用中文回答\n"
-        "4. 根据用户输入（包括天气、地区、心理和健康状况）分析后输出中国菜式推荐\n"
-        '输出示例：{"具体菜名":"番茄炒蛋","所用主要食材":"番茄、鸡蛋、葱","烹饪方式":"炒","营养价值":"富含维生素C和蛋白质","推荐理由":"酸甜可口，开胃下饭"}'
-    )
+    system_prompt = SECONDARY_MENU_PROMPT
 
     # 组合最终 prompt
     full_prompt = f"{system_prompt}\n\n用户输入：{prompt}\n\n请严格按照以上规则输出 JSON："
@@ -340,9 +369,15 @@ def _call_ollama_cloud(prompt: str, model: str, ollama_url: str) -> dict:
 def _get_default_recommendation() -> dict:
     """降级默认推荐"""
     return {
-        "具体菜名": "清蒸鲈鱼",
-        "所用主要食材": "鲈鱼、姜、葱、蒸鱼豉油",
-        "烹饪方式": "清蒸",
-        "营养价值": "高蛋白、低脂肪，富含Omega-3",
-        "推荐理由": "易于消化，适合各类体质，保留食材原味。"
+        "主菜": {
+            "菜名": "清蒸鲈鱼",
+            "食材": "鲈鱼、姜、葱、蒸鱼豉油",
+            "烹饪方式": "清蒸",
+            "营养价值": "高蛋白、低脂肪，富含Omega-3",
+            "推荐理由": "鱼类优质蛋白更适合作为主菜，整体清爽且易消化。"
+        },
+        "配菜": [
+            {"菜名": "蒜蓉油麦菜", "食材": "油麦菜、蒜"},
+            {"菜名": "香菇豆腐", "食材": "北豆腐、香菇"}
+        ]
     }

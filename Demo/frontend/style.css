@@ -526,6 +526,30 @@ button {
     line-height: 1.6;
 }
 
+.message.interrupt-message .message-bubble {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+}
+
+.message.interrupt-message .message-role {
+    display: none;
+}
+
+.interrupt-only {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.interrupt-image {
+    width: min(240px, 100%);
+    height: auto;
+    border-radius: 16px;
+    display: block;
+}
+
 .thinking {
     display: inline-flex;
     align-items: center;
