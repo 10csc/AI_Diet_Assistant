@@ -45,3 +45,6 @@ image.png
 *~
 .DS_Store
 Thumbs.db
+
+# ---- AI 助手行为配置（本地文件，不进版本控制） ----
+CLAUDE.md
