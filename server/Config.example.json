@@ -2,14 +2,20 @@
     "weather_api": {
         "ak": "your_baidu_api_key_here",
         "base_url": "https://api.map.baidu.com/weather/v1/",
-        "district_id": "your_district_id",
-        "city_name": "your_city"
+        "district_id": "",
+        "city_name": "",
+        "location": "",
+        "cached_weather": null
     },
     "models": {
         "primary": {
-            "type": "ollama",
-            "model": "gpt-oss:120b-cloud",
+            "type": "deepseek",
+            "model": "deepseek-chat",
             "api_key": ""
+        },
+        "llamacpp": {
+            "server_url": "http://127.0.0.1:11435",
+            "note": "需用户自行启动 llama-server，参考: llama-server -m 模型.gguf -ngl -1 --host 127.0.0.1 --port 11435"
         },
         "secondary": {
             "type": "deepseek",
@@ -23,7 +29,7 @@
         "port": 8080,
         "static_dir": "./frontend"
     },
-    "python_script": "../AI_Demo/main.py",
+    "python_script": "../ai_core/main.py",
     "user_profile": {
         "age": "",
         "gender": "",

@@ -26,11 +26,48 @@ const CONFIG_INPUT_IDS = [
     'deepseek_model',
     'deepseek_apikey',
     'ollama_model',
-    'ollama_server'
+    'ollama_server',
+    'primary_llamacpp_server',
+    'secondary_llamacpp_server'
 ];
 
 document.addEventListener('DOMContentLoaded', async () => {
     const primaryType = document.getElementById('primary_type');
+    const favoritesBtn = document.getElementById('open_favorites');
+    const setupOverlay = document.getElementById('setup_overlay');
+
+    // 配置向导按钮
+    document.getElementById('setup_save_btn').addEventListener('click', async () => {
+        const apikey = document.getElementById('setup_apikey').value.trim();
+        const weatherak = document.getElementById('setup_weatherak').value.trim();
+        const modelType = document.getElementById('setup_primary_type').value;
+        if (apikey) document.getElementById('deepseek_apikey').value = apikey;
+        if (weatherak) document.getElementById('weather_ak').value = weatherak;
+        if (apikey) document.getElementById('primary_apikey').value = apikey;
+        document.getElementById('primary_type').value = modelType;
+        document.getElementById('secondary_type').value = 'deepseek';
+        updatePrimaryVisibility();
+        updateSecondaryVisibility();
+        await saveConfig();
+        setupOverlay.style.display = 'none';
+    });
+    document.getElementById('setup_skip_btn').addEventListener('click', () => {
+        setupOverlay.style.display = 'none';
+    });
+    const favoritesOverlay = document.getElementById('favorites_overlay');
+    const closeFavoritesBtn = document.getElementById('close_favorites');
+
+    favoritesBtn.addEventListener('click', () => {
+        renderFavorites();
+        favoritesOverlay.style.display = 'flex';
+    });
+    closeFavoritesBtn.addEventListener('click', () => {
+        favoritesOverlay.style.display = 'none';
+    });
+    favoritesOverlay.addEventListener('click', (e) => {
+        if (e.target === favoritesOverlay) favoritesOverlay.style.display = 'none';
+    });
+
     const useSecondaryCheckbox = document.getElementById('use_secondary');
     const secondaryType = document.getElementById('secondary_type');
     const userInput = document.getElementById('user_input');
@@ -70,6 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     createNewConversation(false);
     await loadWeatherCities();
     await loadConfigIntoForm();
+    await checkFirstRun();
     updatePrimaryVisibility();
     updateSecondaryVisibility();
     switchSettingsPanel('weather_panel');
@@ -78,6 +116,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderCurrentConversation();
     await loadHistory(selectedConversationKey);
 });
+
+async function checkFirstRun() {
+    const deepseekKey = document.getElementById('deepseek_apikey').value.trim();
+    const weatherAk = document.getElementById('weather_ak').value.trim();
+    const isFirstRun = !deepseekKey || deepseekKey === 'your_deepseek_api_key_here'
+        || !weatherAk || weatherAk === 'your_baidu_api_key_here';
+
+    if (isFirstRun) {
+        const overlay = document.getElementById('setup_overlay');
+        if (overlay) overlay.style.display = 'flex';
+    }
+}
+
+function closeSetup() {
+    const overlay = document.getElementById('setup_overlay');
+    if (overlay) overlay.style.display = 'none';
+}
 
 function switchSettingsPanel(panelId) {
     document.querySelectorAll('.settings-tab').forEach((tab) => {
@@ -134,19 +189,27 @@ function updateSecondaryVisibility() {
     const secondaryConfig = document.getElementById('secondary_config');
     const deepseekConfig = document.getElementById('deepseek_config');
     const ollamaCloudConfig = document.getElementById('ollama_cloud_config');
+    const secondaryLlamacppConfig = document.getElementById('secondary_llamacpp_config');
 
     secondaryConfig.style.display = useSecondaryCheckbox.checked ? 'block' : 'none';
     deepseekConfig.style.display = secondaryType.value === 'deepseek' ? 'block' : 'none';
     ollamaCloudConfig.style.display = secondaryType.value === 'ollama' ? 'block' : 'none';
+    secondaryLlamacppConfig.style.display = secondaryType.value === 'llamacpp' ? 'block' : 'none';
 }
 
 function updatePrimaryVisibility() {
     const primaryType = document.getElementById('primary_type');
     const primaryDeepseekConfig = document.getElementById('primary_deepseek_config');
+    const primaryLlamacppConfig = document.getElementById('primary_llamacpp_config');
     const primaryModelInput = document.getElementById('primary_model');
 
     primaryDeepseekConfig.style.display = primaryType.value === 'deepseek' ? 'block' : 'none';
-    primaryModelInput.placeholder = primaryType.value === 'deepseek' ? 'deepseek-chat' : 'deepseek-r1:7b';
+    primaryLlamacppConfig.style.display = primaryType.value === 'llamacpp' ? 'block' : 'none';
+    primaryModelInput.placeholder = primaryType.value === 'deepseek' ? 'deepseek-chat'
+        : primaryType.value === 'llamacpp' ? '由服务端管理' : 'deepseek-r1:7b';
+    if (primaryType.value === 'llamacpp') {
+        primaryModelInput.value = 'llama.cpp';
+    }
 }
 
 async function loadWeatherCities() {
@@ -245,9 +308,12 @@ function applyConfigToForm(config) {
     document.getElementById('weather_ak').value = weatherApi.ak || '';
     populateWeatherCityOptions(savedCity ? savedCity.district_id : '');
 
+    const llamacpp = models.llamacpp || {};
+
     document.getElementById('primary_type').value = primary.type || 'deepseek';
     document.getElementById('primary_model').value = primary.model || 'deepseek-chat';
     document.getElementById('primary_apikey').value = primary.api_key || secondary.api_key || '';
+    document.getElementById('primary_llamacpp_server').value = llamacpp.server_url || 'http://127.0.0.1:11435';
 
     document.getElementById('use_secondary').checked = Boolean(secondary.enabled);
     document.getElementById('secondary_type').value = secondary.type || 'deepseek';
@@ -255,6 +321,7 @@ function applyConfigToForm(config) {
     document.getElementById('deepseek_apikey').value = secondary.api_key || '';
     document.getElementById('ollama_model').value = secondary.type === 'ollama' ? (secondary.model || '') : '';
     document.getElementById('ollama_server').value = secondary.ollama_server || 'http://localhost:11434';
+    document.getElementById('secondary_llamacpp_server').value = llamacpp.server_url || 'http://127.0.0.1:11435';
 
     if (weatherApi.cached_weather) {
         currentWeather = weatherApi.cached_weather;
@@ -287,6 +354,10 @@ function buildConfigPayload() {
                 type: primaryType,
                 model: document.getElementById('primary_model').value.trim(),
                 api_key: primaryType === 'deepseek' ? document.getElementById('primary_apikey').value.trim() : ''
+            },
+            llamacpp: {
+                ...(loadedConfig.models?.llamacpp || {}),
+                server_url: document.getElementById('primary_llamacpp_server').value.trim()
             },
             secondary: {
                 ...(loadedConfig.models?.secondary || {}),
@@ -425,6 +496,128 @@ function createNewConversation(shouldRender = true) {
     }
 }
 
+// ====== 菜品反馈系统（赞/踩/收藏）======
+
+function getRecipeProfile() {
+    try { return JSON.parse(localStorage.getItem('recipe_profile')) || []; }
+    catch { return []; }
+}
+
+function saveRecipeProfile(profile) {
+    localStorage.setItem('recipe_profile', JSON.stringify(profile));
+}
+
+function getFavorites() {
+    try { return JSON.parse(localStorage.getItem('favorites')) || []; }
+    catch { return []; }
+}
+
+function saveFavorites(favs) {
+    localStorage.setItem('favorites', JSON.stringify(favs));
+}
+
+function addRecipeFeedback(dishName, dishData, action) {
+    const profile = getRecipeProfile();
+    // 移除已有同一菜品的旧记录
+    const filtered = profile.filter(item => item.dish_name !== dishName);
+    filtered.push({
+        dish_name: dishName,
+        dish_data: dishData,
+        action: action,
+        timestamp: new Date().toISOString()
+    });
+    saveRecipeProfile(filtered);
+}
+
+function renderFavorites() {
+    const list = document.getElementById('favorites_list');
+    const favs = getFavorites();
+    if (!favs.length) {
+        list.innerHTML = '<p class="favorites-empty">暂无收藏</p>';
+        return;
+    }
+    list.innerHTML = favs.map((item, idx) => {
+        const dish = item.dish_data?.主菜 || {};
+        const sides = Array.isArray(item.dish_data?.配菜) ? item.dish_data.配菜.map(s => s.菜名).filter(Boolean).join('、') : '';
+        return `
+            <div class="fav-item">
+                <div class="fav-item-name">${escapeHtml(dish.菜名 || '未知菜式')}</div>
+                <div class="fav-item-meta">${escapeHtml(dish.食材 || '')}${sides ? ' · 配菜：' + escapeHtml(sides) : ''}</div>
+                <div class="fav-item-actions">
+                    <button class="ghost-btn fav-remove-btn" data-index="${idx}">移除</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    list.querySelectorAll('.fav-remove-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const idx = parseInt(btn.dataset.index);
+            const favs = getFavorites();
+            favs.splice(idx, 1);
+            saveFavorites(favs);
+            renderFavorites();
+        });
+    });
+}
+
+function bindFeedbackButtons(messageEl) {
+    const card = messageEl.querySelector('.feedback-card');
+    if (!card) return;
+
+    const dishName = card.dataset.dishName;
+    let dishData;
+    try { dishData = JSON.parse(card.dataset.dishData); } catch { dishData = {}; }
+
+    // 更新按钮状态
+    const profile = getRecipeProfile();
+    const existing = profile.find(item => item.dish_name === dishName);
+    const favs = getFavorites();
+    const isFavorited = favs.some(item => item.dish_name === dishName);
+
+    const likeBtn = card.querySelector('.like-btn');
+    const dislikeBtn = card.querySelector('.dislike-btn');
+    const favBtn = card.querySelector('.fav-btn');
+
+    if (existing) {
+        if (existing.action === 'like') likeBtn.classList.add('active');
+        else if (existing.action === 'dislike') dislikeBtn.classList.add('active');
+    }
+    if (isFavorited) favBtn.classList.add('active');
+
+    likeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        addRecipeFeedback(dishName, dishData, 'like');
+        likeBtn.classList.add('active');
+        dislikeBtn.classList.remove('active');
+    });
+
+    dislikeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        addRecipeFeedback(dishName, dishData, 'dislike');
+        dislikeBtn.classList.add('active');
+        likeBtn.classList.remove('active');
+    });
+
+    favBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const favs = getFavorites();
+        const idx = favs.findIndex(item => item.dish_name === dishName);
+        if (idx >= 0) {
+            favs.splice(idx, 1);
+            favBtn.classList.remove('active');
+        } else {
+            favs.push({
+                dish_name: dishName,
+                dish_data: dishData,
+                timestamp: new Date().toISOString()
+            });
+            favBtn.classList.add('active');
+        }
+        saveFavorites(favs);
+    });
+}
+
 async function submitRequest() {
     await saveConfig();
 
@@ -440,11 +633,13 @@ async function submitRequest() {
     const primaryApiKey = document.getElementById('primary_apikey').value.trim();
     const primaryModelId = primaryType === 'deepseek'
         ? `deepseek:${primaryModel}|${primaryApiKey}`
-        : `ollama:${primaryModel}`;
+        : primaryType === 'llamacpp'
+            ? `llamacpp:${document.getElementById('primary_llamacpp_server').value.trim()}`
+            : `ollama:${primaryModel}`;
     const useSecondary = document.getElementById('use_secondary').checked;
     let secondaryModelId = '';
 
-    if (!primaryModel) {
+    if (!primaryModel && primaryType !== 'llamacpp') {
         alert('请填写一级模型');
         return;
     }
@@ -459,6 +654,9 @@ async function submitRequest() {
             const model = document.getElementById('deepseek_model').value.trim();
             const apiKey = document.getElementById('deepseek_apikey').value.trim();
             secondaryModelId = `deepseek:${model}|${apiKey}`;
+        } else if (secondaryType === 'llamacpp') {
+            const serverUrl = document.getElementById('secondary_llamacpp_server').value.trim();
+            secondaryModelId = `llamacpp:${serverUrl}`;
         } else {
             const model = document.getElementById('ollama_model').value.trim();
             const serverAddr = document.getElementById('ollama_server').value.trim();
@@ -484,6 +682,7 @@ async function submitRequest() {
         primary_model_id: primaryModelId,
         secondary_model_id: secondaryModelId,
         use_secondary: useSecondary,
+        recipe_profile: getRecipeProfile(),
         conversation_id: currentConversation.id,
         conversation_title: currentConversation.title,
         conversation_context: buildConversationContext(currentConversation.messages)
@@ -534,6 +733,7 @@ async function submitRequest() {
             result.interrupt_image || ''
         );
         loadingMessage.classList.remove('loading');
+        bindFeedbackButtons(loadingMessage);
         await loadHistory(currentConversation.key);
     } catch (error) {
         loadingMessage.querySelector('.message-body').innerHTML = `<p>${renderPlainText(`请求失败：${buildReadableError(error.message)}`)}</p>`;
@@ -884,8 +1084,10 @@ function buildAssistantReply(localOutput, cloudOutput, interruptCode = '', inter
     if (cloudOutput && typeof cloudOutput === 'object' && cloudOutput.mode !== 'only_local') {
         const mainDish = cloudOutput.主菜 || {};
         const sideDishes = Array.isArray(cloudOutput.配菜) ? cloudOutput.配菜.slice(0, 2) : [];
+        const dishName = mainDish.菜名 || '';
+        const dishData = escapeHtml(JSON.stringify({主菜: mainDish, 配菜: sideDishes}));
         cards.push(`
-            <div class="reply-card">
+            <div class="reply-card feedback-card" data-dish-name="${escapeHtml(dishName)}" data-dish-data='${dishData}'>
                 <h3>本次菜单建议</h3>
                 <div class="reply-list">
                     <div class="reply-list-item"><strong>主菜：</strong>${escapeHtml(mainDish.菜名 || '-')}</div>
@@ -894,6 +1096,11 @@ function buildAssistantReply(localOutput, cloudOutput, interruptCode = '', inter
                     <div class="reply-list-item"><strong>主菜营养价值：</strong>${escapeHtml(mainDish.营养价值 || '-')}</div>
                     <div class="reply-list-item"><strong>主菜推荐理由：</strong>${escapeHtml(mainDish.推荐理由 || '-')}</div>
                     <div class="reply-list-item"><strong>配菜：</strong>${sideDishes.length ? sideDishes.map((item) => `${escapeHtml(item.菜名 || '-') }（${escapeHtml(item.食材 || '-')}）`).join('、') : '暂无配菜'}</div>
+                </div>
+                <div class="feedback-actions">
+                    <button class="feedback-btn like-btn" title="赞"><span>👍</span> 赞</button>
+                    <button class="feedback-btn dislike-btn" title="踩"><span>👎</span> 踩</button>
+                    <button class="feedback-btn fav-btn" title="收藏"><span>⭐</span> 收藏</button>
                 </div>
             </div>
         `);

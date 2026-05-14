@@ -690,3 +690,207 @@ button {
         align-items: stretch;
     }
 }
+
+/* ===== 菜品反馈按钮 ===== */
+.feedback-card {
+    position: relative;
+    padding-bottom: 50px !important;
+}
+
+.feedback-actions {
+    position: absolute;
+    bottom: 10px;
+    right: 12px;
+    display: flex;
+    gap: 6px;
+}
+
+.feedback-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 4px 10px;
+    font-size: 12px;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    background: #f8f8f8;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: #666;
+}
+
+.feedback-btn:hover {
+    background: #eee;
+    border-color: #ccc;
+}
+
+.feedback-btn.active {
+    background: #e8f0fe;
+    border-color: #4a90d9;
+    color: #4a90d9;
+}
+
+.fav-btn.active {
+    background: #fff7e6;
+    border-color: #f0ad4e;
+    color: #f0ad4e;
+}
+
+.feedback-btn span {
+    font-size: 14px;
+}
+
+/* ===== 收藏面板 ===== */
+.favorites-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.3);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.favorites-panel {
+    background: #fff;
+    border-radius: 12px;
+    width: 480px;
+    max-width: 90vw;
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+}
+
+.favorites-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #eee;
+}
+
+.favorites-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.favorites-list {
+    padding: 12px 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.favorites-empty {
+    color: #999;
+    text-align: center;
+    padding: 40px 0;
+    font-size: 14px;
+}
+
+.fav-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.fav-item:last-child {
+    border-bottom: none;
+}
+
+.fav-item-name {
+    font-weight: 600;
+    font-size: 15px;
+    color: #333;
+}
+
+.fav-item-meta {
+    font-size: 13px;
+    color: #888;
+    line-height: 1.4;
+}
+
+.fav-item-actions {
+    margin-top: 4px;
+}
+
+.fav-remove-btn {
+    font-size: 12px;
+    color: #e74c3c;
+    cursor: pointer;
+    border: none;
+    background: none;
+    padding: 2px 8px;
+}
+
+.fav-remove-btn:hover {
+    text-decoration: underline;
+}
+
+/* ===== 首次配置向导 ===== */
+.setup-panel {
+    max-width: 520px;
+}
+
+.setup-body {
+    padding: 20px;
+}
+
+.setup-step {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    padding: 12px;
+    background: #f8f9fb;
+    border-radius: 8px;
+}
+
+.setup-step-num {
+    width: 24px;
+    height: 24px;
+    background: #4a90d9;
+    color: #fff;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 24px;
+    font-size: 13px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.setup-step-content {
+    flex: 1;
+}
+
+.setup-step-content strong {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+}
+
+.setup-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 13px;
+    box-sizing: border-box;
+}
+
+.setup-input:focus {
+    border-color: #4a90d9;
+    outline: none;
+}
+
+.setup-tip {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #999;
+}
+
+.setup-tip a {
+    color: #4a90d9;
+}

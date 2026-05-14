@@ -34,6 +34,7 @@ struct ChatRequest {
     std::string conversation_id;
     std::string conversation_title;
     std::string conversation_context;
+    std::string recipe_profile;
     bool use_secondary = false;
 };
 
@@ -849,6 +850,7 @@ bool parse_chat_request(const std::string& body, ChatRequest& request) {
     extract_json_string(body, "conversation_id", request.conversation_id);
     extract_json_string(body, "conversation_title", request.conversation_title);
     extract_json_string(body, "conversation_context", request.conversation_context);
+    extract_json_string(body, "recipe_profile", request.recipe_profile);
     extract_json_bool(body, "use_secondary", request.use_secondary);
 
     return !request.primary_model_id.empty();
@@ -1127,6 +1129,7 @@ std::string build_chat_request_json(const ChatRequest& request) {
     oss << "\"conversation_id\":\"" << json_escape(request.conversation_id) << "\",";
     oss << "\"conversation_title\":\"" << json_escape(request.conversation_title) << "\",";
     oss << "\"conversation_context\":\"" << json_escape(request.conversation_context) << "\",";
+    oss << "\"recipe_profile\":" << (request.recipe_profile.empty() ? "[]" : request.recipe_profile) << ",";
     oss << "\"use_secondary\":" << (request.use_secondary ? "true" : "false");
     oss << "}";
     return oss.str();

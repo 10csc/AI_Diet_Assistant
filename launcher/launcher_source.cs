@@ -11,31 +11,63 @@ internal static class LauncherProgram
     {
         try
         {
-            var rootDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var demoDir = Path.Combine(rootDir, "Demo");
+            var exeDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var rootDir = Path.GetDirectoryName(exeDir);
+            var demoDir = Path.Combine(rootDir, "server");
             var buildDir = Path.Combine(demoDir, "build");
             var backendExe = Path.Combine(buildDir, "Debug", "backend.exe");
-            var venvPython = Path.Combine(rootDir, "AI_Demo", "ai_diet_env", "Scripts", "python.exe");
-            var venvScripts = Path.Combine(rootDir, "AI_Demo", "ai_diet_env", "Scripts");
+            var venvPython = Path.Combine(rootDir, "ai_core", "ai_diet_env", "Scripts", "python.exe");
+            var venvScripts = Path.Combine(rootDir, "ai_core", "ai_diet_env", "Scripts");
 
             WriteStep("Check project files");
-            EnsureFileExists(Path.Combine(demoDir, "backend.cpp"), "Demo\\backend.cpp not found. Put the launcher exe in the project root.");
+            EnsureFileExists(Path.Combine(demoDir, "backend.cpp"), "server\\backend.cpp not found. Put the launcher exe in the project root.");
 
             WriteStep("Stop old backend");
             StopOldBackend(backendExe);
 
             WriteStep("Prepare Python");
-            if (File.Exists(venvPython))
+            string requirementsTxt = Path.Combine(rootDir, "ai_core", "requirements.txt");
+
+            // 检查系统 Python 是否已有依赖
+            bool sysPythonReady = RunProcessCheck("python", "-c \"import chromadb, sentence_transformers\"", rootDir);
+
+            if (sysPythonReady)
             {
+                Console.WriteLine("Use system Python (dependencies already satisfied).");
+            }
+            else if (File.Exists(venvPython))
+            {
+                // venv 存在但依赖可能不全，尝试安装
                 PrependPath(venvScripts);
                 Console.WriteLine("Use venv Python: " + venvPython);
+                if (File.Exists(requirementsTxt))
+                {
+                    Console.WriteLine("Installing Python dependencies into venv...");
+                    RunProcess(venvPython, "-m pip install -r \"" + requirementsTxt + "\"", rootDir);
+                }
             }
             else
             {
-                Console.WriteLine("Venv Python not found. Use system Python.");
+                Console.WriteLine("Creating virtual environment...");
+                RunProcess("python", "-m venv \"" + Path.Combine(rootDir, "ai_core", "ai_diet_env") + "\"", rootDir);
+                if (File.Exists(venvPython))
+                {
+                    PrependPath(venvScripts);
+                    Console.WriteLine("Venv created. Installing dependencies...");
+                    if (File.Exists(requirementsTxt))
+                    {
+                        RunProcess(venvPython, "-m pip install -r \"" + requirementsTxt + "\"", rootDir);
+                    }
+                }
             }
 
             var configJsonPath = Path.Combine(demoDir, "Config.json");
+            var configExamplePath = Path.Combine(demoDir, "Config.example.json");
+            if (!File.Exists(configJsonPath) && File.Exists(configExamplePath))
+            {
+                File.Copy(configExamplePath, configJsonPath);
+                Console.WriteLine("Created Config.json from template.");
+            }
             var needOllama = RequiresOllama(configJsonPath);
             if (needOllama)
             {
@@ -44,23 +76,34 @@ internal static class LauncherProgram
             }
 
             WriteStep("Build backend");
-            if (!Directory.Exists(buildDir))
+            // 优先使用预编译的 backend.exe（用户无需 VS2022/Cmake）
+            string prebuiltExe = Path.Combine(demoDir, "bin", "backend.exe");
+            if (File.Exists(prebuiltExe))
             {
-                Directory.CreateDirectory(buildDir);
+                backendExe = prebuiltExe;
+                Console.WriteLine("Use pre-built backend: " + prebuiltExe);
             }
-
-            if (!File.Exists(Path.Combine(buildDir, "CMakeCache.txt")))
+            else
             {
-                RunProcess("cmake", "-S \"" + demoDir + "\" -B \"" + buildDir + "\"", rootDir);
-            }
+                Console.WriteLine("Pre-built backend not found, compiling from source...");
+                if (!Directory.Exists(buildDir))
+                {
+                    Directory.CreateDirectory(buildDir);
+                }
 
-            RunProcess("cmake", "--build \"" + buildDir + "\" --config Debug", rootDir);
-            EnsureFileExists(backendExe, "Build finished but backend.exe was not found.");
+                if (!File.Exists(Path.Combine(buildDir, "CMakeCache.txt")))
+                {
+                    RunProcess("cmake", "-S \"" + demoDir + "\" -B \"" + buildDir + "\"", rootDir);
+                }
+
+                RunProcess("cmake", "--build \"" + buildDir + "\" --config Debug", rootDir);
+                EnsureFileExists(backendExe, "Compilation finished but backend.exe was not found.");
+            }
 
             WriteStep("Start backend");
             var backendProcess = new Process();
             backendProcess.StartInfo.FileName = backendExe;
-            backendProcess.StartInfo.WorkingDirectory = buildDir;
+            backendProcess.StartInfo.WorkingDirectory = Path.Combine(rootDir, "server");
             backendProcess.StartInfo.UseShellExecute = true;
             backendProcess.StartInfo.WindowStyle = ProcessWindowStyle.Minimized;
             backendProcess.Start();
@@ -140,7 +183,7 @@ internal static class LauncherProgram
 
     private static int ReadPort(string rootDir)
     {
-        var configJson = Path.Combine(rootDir, "Demo", "Config.json");
+        var configJson = Path.Combine(rootDir, "server", "Config.json");
         if (File.Exists(configJson))
         {
             var text = File.ReadAllText(configJson);
@@ -152,7 +195,7 @@ internal static class LauncherProgram
             }
         }
 
-        var configTxt = Path.Combine(rootDir, "Demo", "config.txt");
+        var configTxt = Path.Combine(rootDir, "server", "config.txt");
         if (File.Exists(configTxt))
         {
             foreach (var line in File.ReadAllLines(configTxt))
@@ -319,6 +362,20 @@ internal static class LauncherProgram
                 client.Close();
             }
         }
+    }
+
+    private static bool RunProcessCheck(string fileName, string arguments, string workingDirectory)
+    {
+        var process = new Process();
+        process.StartInfo.FileName = fileName;
+        process.StartInfo.Arguments = arguments;
+        process.StartInfo.WorkingDirectory = workingDirectory;
+        process.StartInfo.UseShellExecute = false;
+        process.StartInfo.RedirectStandardOutput = true;
+        process.StartInfo.RedirectStandardError = true;
+        process.Start();
+        process.WaitForExit(10000);
+        return process.ExitCode == 0;
     }
 
     private static void RunProcess(string fileName, string arguments, string workingDirectory)

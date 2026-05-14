@@ -1,4 +1,4 @@
-python AI_Demo/main.py
+python ai_core/main.py
   --user_input "我今天有点感冒，想吃点清淡的"
   --personal_info '{"age": 25, "gender": "男", "allergies": ["海鲜"]}'
   --weather '{"temp": 10, "condition": "阴雨"}'

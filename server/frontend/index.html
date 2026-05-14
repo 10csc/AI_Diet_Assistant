@@ -12,7 +12,7 @@
             <div class="brand-card">
                 <div class="brand-badge">AI 饮食助手</div>
                 <h1>Diet Chat</h1>
-                <p>像 DeepSeek 一样聊天，结合天气、体征和偏好生成饮食建议。</p>
+                <p>基于两级 AI 模型管线与 RAG 食材知识库的智能饮食推荐系统，融合天气、体征与个人偏好生成个性化菜式。</p>
             </div>
 
             <section class="sidebar-card settings-card">
@@ -20,6 +20,7 @@
                     <h2>快捷设置</h2>
                     <div class="section-actions">
                         <button id="open_history_sidebar" type="button" class="ghost-btn history-open-btn">历史对话</button>
+                        <button id="open_favorites" type="button" class="ghost-btn">收藏</button>
                         <span class="section-tip">左下角分页切换</span>
                     </div>
                 </div>
@@ -86,6 +87,7 @@
                         <select id="primary_type">
                             <option value="deepseek">DeepSeek API</option>
                             <option value="ollama">Ollama 本地</option>
+                            <option value="llamacpp">llama.cpp</option>
                         </select>
                     </div>
                     <div class="form-stack">
@@ -96,6 +98,12 @@
                         <div class="form-stack">
                             <label for="primary_apikey">一级 API Key</label>
                             <input type="text" id="primary_apikey" placeholder="sk-xxx">
+                        </div>
+                    </div>
+                    <div id="primary_llamacpp_config" class="inline-block">
+                        <div class="form-stack">
+                            <label for="primary_llamacpp_server">llama.cpp 服务地址</label>
+                            <input type="text" id="primary_llamacpp_server" placeholder="http://127.0.0.1:11435" value="http://127.0.0.1:11435">
                         </div>
                     </div>
 
@@ -110,6 +118,7 @@
                             <select id="secondary_type">
                                 <option value="deepseek">DeepSeek API</option>
                                 <option value="ollama">Ollama 云端</option>
+                                <option value="llamacpp">llama.cpp</option>
                             </select>
                         </div>
                         <div id="deepseek_config">
@@ -130,6 +139,12 @@
                             <div class="form-stack">
                                 <label for="ollama_server">Ollama 服务器</label>
                                 <input type="text" id="ollama_server" placeholder="http://localhost:11434">
+                            </div>
+                        </div>
+                        <div id="secondary_llamacpp_config">
+                            <div class="form-stack">
+                                <label for="secondary_llamacpp_server">llama.cpp 服务地址</label>
+                                <input type="text" id="secondary_llamacpp_server" placeholder="http://127.0.0.1:11435" value="http://127.0.0.1:11435">
                             </div>
                         </div>
                     </div>
@@ -176,6 +191,58 @@
                 </div>
             </footer>
         </main>
+    </div>
+    <div id="setup_overlay" class="favorites-overlay" style="display:none;">
+        <div class="favorites-panel setup-panel">
+            <div class="favorites-header">
+                <h3>🚀 首次配置</h3>
+            </div>
+            <div class="setup-body">
+                <p style="margin-bottom:12px;color:#666;font-size:14px;">检测到配置尚未完成，请先设置以下必需的密钥：</p>
+                <div class="setup-step">
+                    <div class="setup-step-num">1</div>
+                    <div class="setup-step-content">
+                        <strong>DeepSeek API Key（必填）</strong>
+                        <input type="text" id="setup_apikey" placeholder="sk-xxx" class="setup-input">
+                        <p class="setup-tip">在 <a href="https://platform.deepseek.com" target="_blank">platform.deepseek.com</a> 注册获取</p>
+                    </div>
+                </div>
+                <div class="setup-step">
+                    <div class="setup-step-num">2</div>
+                    <div class="setup-step-content">
+                        <strong>百度天气 API Key（可选）</strong>
+                        <input type="text" id="setup_weatherak" placeholder="your_baidu_api_key_here" class="setup-input">
+                        <p class="setup-tip">不填则无法获取天气数据，但不影响饮食推荐</p>
+                    </div>
+                </div>
+                <div class="setup-step">
+                    <div class="setup-step-num">3</div>
+                    <div class="setup-step-content">
+                        <strong>选择一级模型</strong>
+                        <select id="setup_primary_type" class="setup-input">
+                            <option value="llamacpp">llama.cpp（本地 GGUF）</option>
+                            <option value="deepseek">DeepSeek API</option>
+                            <option value="ollama">Ollama 本地</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-top:16px;text-align:right;">
+                    <button id="setup_skip_btn" class="ghost-btn" style="margin-right:8px;">跳过</button>
+                    <button id="setup_save_btn" class="primary-btn">保存配置</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="favorites_overlay" class="favorites-overlay" style="display:none;">
+        <div class="favorites-panel">
+            <div class="favorites-header">
+                <h3>收藏菜谱</h3>
+                <button id="close_favorites" type="button" class="ghost-btn">关闭</button>
+            </div>
+            <div id="favorites_list" class="favorites-list">
+                <p class="favorites-empty">暂无收藏</p>
+            </div>
+        </div>
     </div>
     <script src="script.js"></script>
 </body>

@@ -1,4 +1,4 @@
-# AI_Demo/main.py
+# ai_core/main.py
 import argparse
 import json
 import sys
@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Any, Optional
 from models.ollama_import import preprocess_with_ollama
 from models.cloudmodel_import import get_diet_recommendation, preprocess_with_deepseek
+from models.llamacpp_import import preprocess_with_llamacpp
 from rag import build_rag_context, build_secondary_prompt, format_local_analysis
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -56,6 +57,7 @@ except Exception:
 PREPROCESSOR_MAP = {
     "ollama:": preprocess_with_ollama,
     "deepseek:": preprocess_with_deepseek,
+    "llamacpp:": preprocess_with_llamacpp,
 }
 
 INTERRUPT_CODE_SPEECHLESS = "speechless"
@@ -68,9 +70,22 @@ INTERRUPT_IMAGE_URL = "/image/speechless.webp"
 def save_to_jsonl(record: dict) -> None:
     """
     保存一条记录到 JSONL 日志文件。
+    会自动脱敏 model_id 中的 API Key（格式 provider:model|key → provider:model|***）。
 
     :param record: 包含所有待保存字段的字典（timestamp 由本函数自动补充）
     """
+    import re
+
+    def _mask_api_key(value: str) -> str:
+        """脱敏 model_id 中的 API Key"""
+        if not isinstance(value, str):
+            return value
+        return re.sub(r"\|(sk-[a-zA-Z0-9]+)$", r"|***", value)
+
+    for key in ("primary_model_id", "secondary_model_id"):
+        if key in record:
+            record[key] = _mask_api_key(record[key])
+
     today_str = datetime.now().strftime("%Y-%m-%d")
     file_path = os.path.join(LOG_DIR, f"{today_str}.jsonl")
     record["timestamp"] = datetime.now().isoformat()
@@ -145,6 +160,50 @@ def sanitize_weather_payload(weather_text: str) -> str:
     return json.dumps(weather_obj, ensure_ascii=False, separators=(",", ":"))
 
 
+def _blur_personal_info(personal_info: str) -> str:
+    """
+    将 personal_info JSON 中的隐私字段替换为模糊化描述。
+    - 具体年龄（28）→ 年龄段（20多岁）
+    - 具体身高体重（175cm / 70kg）→ BMI 等级（偏瘦/正常/超重/肥胖）
+
+    在验证通过后、构建模型输入前调用，确保模型不接触原始精确值。
+    """
+    import re as _re
+    try:
+        info = json.loads(personal_info) if isinstance(personal_info, str) else dict(personal_info)
+    except (TypeError, json.JSONDecodeError):
+        return personal_info
+    if not isinstance(info, dict):
+        return personal_info
+
+    # 模糊化年龄（5 岁一个阶段）
+    age_raw = info.get("age")
+    age_val = _parse_int_value(age_raw)
+    if age_val is not None and 1 <= age_val <= 120:
+        start = (age_val // 5) * 5
+        info["age_range"] = f"{start}-{start + 4}岁"
+        info.pop("age", None)
+
+    # 模糊化身高体重 → BMI 等级
+    height_cm = _parse_float_value(info.get("height"))
+    weight_kg = _parse_float_value(info.get("weight"))
+    if height_cm and weight_kg and height_cm > 0:
+        bmi = weight_kg / ((height_cm / 100) ** 2)
+        if bmi < 18.5:
+            bmi_label = "偏瘦"
+        elif bmi < 24:
+            bmi_label = "正常"
+        elif bmi < 28:
+            bmi_label = "超重"
+        else:
+            bmi_label = "肥胖"
+        info["body_type"] = bmi_label
+        info.pop("height", None)
+        info.pop("weight", None)
+
+    return json.dumps(info, ensure_ascii=False)
+
+
 def resolve_request_args(args) -> dict:
     payload = load_request_payload(args.request_file) if args.request_file else {}
 
@@ -158,6 +217,7 @@ def resolve_request_args(args) -> dict:
         "conversation_id": payload.get("conversation_id", ""),
         "conversation_title": payload.get("conversation_title", ""),
         "conversation_context": payload.get("conversation_context", ""),
+        "recipe_profile": payload.get("recipe_profile", []),
     }
 
     if not resolved["user_input"]:
@@ -405,6 +465,18 @@ def parse_preprocess_result(raw_output: str) -> dict:
         else:
             result[key] = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
 
+    # ---- 隐私模糊化（对所有后端输出生效） ----
+    import re as _re
+    for _key in ("用户画像摘要", "身体状态分析", "优化提示词"):
+        _val = result.get(_key, "")
+        if isinstance(_val, str) and _val:
+            # 模糊化具体年龄：28岁 → 20多岁
+            _val = _re.sub(r"(\d+)岁", lambda m: str(int(int(m.group(1)) / 10) * 10) + "多岁", _val)
+            # 模糊化具体身高体重
+            _val = _re.sub(r"身高\d+\.?\d*cm[，,;；]?\s*", "", _val)
+            _val = _re.sub(r"体重\d+\.?\d*kg[，,;；]?\s*", "", _val)
+            result[_key] = _val.strip().rstrip("，,;；")
+
     if not result["优化提示词"]:
         result["优化提示词"] = raw_output.strip()
     if not result["用户画像摘要"]:
@@ -428,7 +500,7 @@ def main():
         "--primary_model_id",
         type=str,
         default="",
-        help="一级模型ID，格式：provider:model_name，例如 ollama:deepseek-r1:7b",
+        help="一级模型ID，格式：provider:model_name，例如 ollama:deepseek-r1:7b 或 llamacpp:all（llamacpp 支持 :gpu_layers 后缀）",
     )
     parser.add_argument(
         "--secondary_model_id",
@@ -476,6 +548,9 @@ def main():
             )
             print(json.dumps(interrupt_result, ensure_ascii=False, indent=2))
             return
+
+        # 模糊化年龄和身高体重（验证通过后、模型输入前）
+        resolved["personal_info"] = _blur_personal_info(resolved["personal_info"])
 
         # 构建完整原始输入
         raw_input = build_raw_input(
@@ -525,6 +600,15 @@ def main():
             preprocess_result,
             rag_context,
         )
+
+        # 将菜品偏好画像（赞/踩历史）附加到二级模型的提示词中
+        recipe_profile = resolved.get("recipe_profile", [])
+        if recipe_profile and isinstance(recipe_profile, list) and len(recipe_profile) > 0:
+            profile_text = json.dumps(recipe_profile, ensure_ascii=False)
+            secondary_prompt += (
+                f"\n\n用户历史菜品反馈（用于了解用户口味偏好）：{profile_text}\n"
+                "请参考用户的历史反馈调整推荐，避免推荐用户踩过的菜品，优先推荐用户赞过的类似菜品。"
+            )
 
         if resolved["use_secondary"] and resolved["secondary_model_id"]:
             # 步骤2：使用二级模型生成饮食推荐（带自动重试）
