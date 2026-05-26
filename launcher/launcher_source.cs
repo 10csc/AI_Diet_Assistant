@@ -6,6 +6,9 @@ using System.Text.RegularExpressions;
 
 internal static class LauncherProgram
 {
+    private static int _step = 0;
+    private static int _totalSteps = 7;
+
     [STAThread]
     private static int Main()
     {
@@ -18,15 +21,18 @@ internal static class LauncherProgram
             var venvPython = Path.Combine(aiCoreDir, "ai_diet_env", "Scripts", "python.exe");
             var venvScripts = Path.Combine(aiCoreDir, "ai_diet_env", "Scripts");
 
-            WriteStep("Check project files");
+            Console.WriteLine("=== AI Diet Assistant Launcher ===");
+            Console.WriteLine();
+
+            NextStep("Check project files");
             EnsureFileExists(Path.Combine(serverDir, "run_server.py"),
                 "run_server.py not found. Put the launcher exe in the project root.");
 
-            WriteStep("Stop old backend");
+            NextStep("Stop old backend");
             StopOldBackend("backend");
             StopOldBackend("run_server");
 
-            WriteStep("Prepare Python");
+            NextStep("Prepare Python");
             string requirementsTxt = Path.Combine(aiCoreDir, "requirements.txt");
 
             // 查找可用的 Python（依次搜索 conda 环境、venv、PATH）
@@ -90,14 +96,18 @@ internal static class LauncherProgram
                 Console.WriteLine("Dependencies already satisfied.");
             }
 
-            WriteStep("Warm up knowledge base");
+            NextStep("Warm up knowledge base");
             Console.WriteLine("Building nutrition index (may take a moment on first launch)...");
+            // 用正斜杠避免 Python 转义反斜杠
+            string pyAiCore = aiCoreDir.Replace("\\", "/");
+            string pyRoot = rootDir.Replace("\\", "/");
             RunProcess(foundPython,
-                "-c \"import sys; sys.path.insert(0,'" + aiCoreDir + "'); "
+                "-c \"import sys; sys.path.insert(0,'" + pyAiCore + "'); "
                 + "from rag.data_loader import ensure_knowledge_base; "
+                + "xls='" + pyRoot + "/data/食材营养.xls'; "
                 + "import os; "
-                + "xls=os.path.join('" + rootDir + "','data','食材营养.xls'); "
-                + "if os.path.exists(xls): ensure_knowledge_base(xls); print('KB ready') else: print('KB skipped')\"",
+                + "if os.path.exists(xls): ensure_knowledge_base(xls); print('KB ready') "
+                + "else: print('KB skipped')\"",
                 rootDir);
             Console.WriteLine("Knowledge base ready.");
 
@@ -111,11 +121,11 @@ internal static class LauncherProgram
             var needOllama = RequiresOllama(configJsonPath);
             if (needOllama)
             {
-                WriteStep("Check Ollama");
+                NextStep("Check Ollama");
                 EnsureOllamaRunning(rootDir);
             }
 
-            WriteStep("Start Python backend");
+            NextStep("Start Python backend");
             var backendProcess = new Process();
             backendProcess.StartInfo.FileName = foundPython;
             backendProcess.StartInfo.Arguments = "-u server/run_server.py";
@@ -146,7 +156,7 @@ internal static class LauncherProgram
             var started = WaitForPort("127.0.0.1", port, 15000);
 
             var url = "http://localhost:" + port + "/";
-            WriteStep("Open browser");
+            NextStep("Open browser");
             Process.Start(new ProcessStartInfo
             {
                 FileName = url,
@@ -168,10 +178,13 @@ internal static class LauncherProgram
         }
     }
 
-    private static void WriteStep(string message)
+    private static void NextStep(string message)
     {
+        _step++;
         Console.WriteLine();
-        Console.WriteLine("[{0}] {1}", DateTime.Now.ToString("HH:mm:ss"), message);
+        Console.WriteLine(" [{0}/{1}] {2}", _step, _totalSteps, message);
+        int done = _step * 20 / _totalSteps;
+        Console.WriteLine("  " + new string('█', done) + new string('░', 20 - done));
     }
 
     private static void EnsureFileExists(string path, string message)
