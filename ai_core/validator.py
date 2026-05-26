@@ -34,31 +34,38 @@ def _normalize_gender_value(value: Any) -> str:
 def validate_personal_info_fields(personal_info_text: str) -> list[str]:
     """
     校验个人信息字段（age/gender/height/weight）是否在合理范围内。
+
     返回非法字段名列表，空列表表示全部通过。
+    注意：个人信息为必填项，不填则返回所有字段名强制用户配置。
     """
     profile = _load_personal_info_object(personal_info_text)
+
+    # 个人信息完全为空 → 标记所有字段为"未填写"
+    if not profile:
+        return ["age", "gender", "height", "weight"]
+
     invalid_fields: list[str] = []
 
     age_raw = profile.get("age")
     age_value = _parse_int_value(age_raw)
-    if str(age_raw).strip():
+    if age_raw is not None and str(age_raw).strip():
         if age_value is None or not (1 <= age_value <= 120):
             invalid_fields.append("age")
 
     gender_raw = profile.get("gender")
-    if str(gender_raw).strip():
+    if gender_raw is not None and str(gender_raw).strip():
         if not _normalize_gender_value(gender_raw):
             invalid_fields.append("gender")
 
     height_raw = profile.get("height")
     height_value = _parse_float_value(height_raw)
-    if str(height_raw).strip():
+    if height_raw is not None and str(height_raw).strip():
         if height_value is None or not (50 <= height_value <= 260):
             invalid_fields.append("height")
 
     weight_raw = profile.get("weight")
     weight_value = _parse_float_value(weight_raw)
-    if str(weight_raw).strip():
+    if weight_raw is not None and str(weight_raw).strip():
         if weight_value is None or not (10 <= weight_value <= 500):
             invalid_fields.append("weight")
 

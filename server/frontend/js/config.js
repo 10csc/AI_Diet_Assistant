@@ -50,7 +50,7 @@ export function updatePrimaryVisibility() {
 
     primaryDeepseekConfig.style.display = primaryType.value === 'deepseek' ? 'block' : 'none';
     primaryLlamacppConfig.style.display = primaryType.value === 'llamacpp' ? 'block' : 'none';
-    primaryModelInput.placeholder = primaryType.value === 'deepseek' ? 'deepseek-chat'
+    primaryModelInput.placeholder = primaryType.value === 'deepseek' ? 'deepseek-v4-flash'
         : primaryType.value === 'llamacpp' ? '由服务端管理' : 'deepseek-r1:7b';
     if (primaryType.value === 'llamacpp') {
         primaryModelInput.value = 'llama.cpp';
@@ -192,13 +192,13 @@ function applyConfigToForm(config) {
     const secondaryApiKey = (!secondary.api_key || secondary.api_key === '***') ? '' : secondary.api_key;
 
     document.getElementById('primary_type').value = primary.type || 'deepseek';
-    document.getElementById('primary_model').value = primary.model || 'deepseek-chat';
+    document.getElementById('primary_model').value = primary.model || 'deepseek-v4-flash';
     document.getElementById('primary_apikey').value = primaryApiKey || secondaryApiKey || '';
     document.getElementById('primary_llamacpp_server').value = llamacpp.server_url || 'http://127.0.0.1:11435';
 
     document.getElementById('use_secondary').checked = Boolean(secondary.enabled);
     document.getElementById('secondary_type').value = secondary.type || 'deepseek';
-    document.getElementById('deepseek_model').value = secondary.type === 'deepseek' ? (secondary.model || 'deepseek-chat') : 'deepseek-chat';
+    document.getElementById('deepseek_model').value = secondary.type === 'deepseek' ? (secondary.model || 'deepseek-v4-flash') : 'deepseek-v4-flash';
     document.getElementById('deepseek_apikey').value = secondaryApiKey;
     document.getElementById('ollama_model').value = secondary.type === 'ollama' ? (secondary.model || '') : '';
     document.getElementById('ollama_server').value = secondary.ollama_server || 'http://localhost:11434';

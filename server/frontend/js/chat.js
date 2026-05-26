@@ -155,8 +155,11 @@ export async function submitRequest() {
     const primaryType = document.getElementById('primary_type').value;
     const primaryModel = document.getElementById('primary_model').value.trim();
     const primaryApiKey = document.getElementById('primary_apikey').value.trim();
+    const hasPrimaryEnvKey = state.loadedConfig?.models?.primary?.api_key === '***';
+    const hasSecondaryEnvKey = state.loadedConfig?.models?.secondary?.api_key === '***';
+    const resolvedPrimaryKey = primaryApiKey || (hasPrimaryEnvKey ? '***' : '');
     const primaryModelId = primaryType === 'deepseek'
-        ? `deepseek:${primaryModel}|${primaryApiKey}`
+        ? `deepseek:${primaryModel}|${resolvedPrimaryKey}`
         : primaryType === 'llamacpp'
             ? `llamacpp:${document.getElementById('primary_llamacpp_server').value.trim()}`
             : `ollama:${primaryModel}`;
@@ -167,8 +170,8 @@ export async function submitRequest() {
         alert('请填写一级模型');
         return;
     }
-    if (primaryType === 'deepseek' && !primaryApiKey) {
-        alert('请选择 DeepSeek 作为一级模型时填写 API Key');
+    if (primaryType === 'deepseek' && !primaryApiKey && !hasPrimaryEnvKey) {
+        alert('请先在设置中配置 API Key，或确认系统环境变量已设置');
         return;
     }
 
@@ -177,7 +180,9 @@ export async function submitRequest() {
         if (secondaryType === 'deepseek') {
             const model = document.getElementById('deepseek_model').value.trim();
             const apiKey = document.getElementById('deepseek_apikey').value.trim();
-            secondaryModelId = `deepseek:${model}|${apiKey}`;
+            // 二级 Key 未配置时自动复用一级 Key
+            const secKey = apiKey || (hasSecondaryEnvKey ? '***' : '') || resolvedPrimaryKey;
+            secondaryModelId = `deepseek:${model}|${secKey}`;
         } else if (secondaryType === 'llamacpp') {
             const serverUrl = document.getElementById('secondary_llamacpp_server').value.trim();
             secondaryModelId = `llamacpp:${serverUrl}`;

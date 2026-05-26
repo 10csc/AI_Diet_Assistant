@@ -45,43 +45,61 @@ internal static class LauncherProgram
             }
             Console.WriteLine("Using Python: " + foundPython);
 
-            // conda 环境通常已有依赖，跳过检查
-            bool pythonReady = foundPython.Contains("anaconda") || foundPython.Contains("conda");
-            if (!pythonReady)
-            {
-                pythonReady = RunProcessCheck(foundPython,
-                    "-c \"import flask, chromadb, sentence_transformers\"", rootDir);
-            }
+            // 检查依赖是否完备
+            bool depsReady = RunProcessCheck(foundPython,
+                "-c \"import flask, chromadb, sentence_transformers, xlrd\"", rootDir);
 
-            if (!pythonReady)
+            if (!depsReady)
             {
+                // 优先使用项目 venv（隔离环境）
                 if (File.Exists(venvPython))
                 {
-                    PrependPath(venvScripts);
-                    Console.WriteLine("Use venv Python: " + venvPython);
                     foundPython = venvPython;
-                    if (File.Exists(requirementsTxt))
-                    {
-                        Console.WriteLine("Installing Python dependencies into venv...");
-                        RunProcess(foundPython, "-m pip install -r \"" + requirementsTxt + "\"", rootDir);
-                    }
+                    Console.WriteLine("Use venv Python: " + foundPython);
                 }
                 else
                 {
-                    Console.WriteLine("Creating virtual environment...");
-                    RunProcess(foundPython, "-m venv \"" + Path.Combine(aiCoreDir, "ai_diet_env") + "\"", rootDir);
-                    if (File.Exists(venvPython))
-                    {
-                        PrependPath(venvScripts);
-                        foundPython = venvPython;
-                        Console.WriteLine("Venv created. Installing dependencies...");
-                        if (File.Exists(requirementsTxt))
-                        {
-                            RunProcess(foundPython, "-m pip install -r \"" + requirementsTxt + "\"", rootDir);
-                        }
-                    }
+                    // 创建隔离的 venv
+                    Console.WriteLine("Creating virtual environment (isolated)...");
+                    RunProcess(foundPython,
+                        "-m venv \"" + Path.Combine(aiCoreDir, "ai_diet_env") + "\"", rootDir);
+                    if (!File.Exists(venvPython))
+                        throw new FileNotFoundException("Failed to create virtual environment.");
+                    foundPython = venvPython;
+                    Console.WriteLine("Venv created.");
                 }
+
+                // 安装依赖到 venv（使用国内镜像加速）
+                string mirror = "https://pypi.tuna.tsinghua.edu.cn/simple";
+                Console.WriteLine("Installing dependencies (mirror: tsinghua)...");
+                RunProcess(foundPython, "-m pip install --upgrade pip -q -i " + mirror, rootDir);
+                if (File.Exists(requirementsTxt))
+                {
+                    RunProcess(foundPython, "-m pip install -r \"" + requirementsTxt + "\" -i " + mirror, rootDir);
+                }
+                // 安装 Flask（server 依赖，不在 requirements.txt 中）
+                RunProcess(foundPython, "-m pip install flask flask-cors -q -i " + mirror, rootDir);
+
+                // 最终验证
+                RunProcessCheck(foundPython,
+                    "-c \"import flask, chromadb, sentence_transformers, xlrd\"", rootDir);
+                Console.WriteLine("Dependencies ready.");
             }
+            else
+            {
+                Console.WriteLine("Dependencies already satisfied.");
+            }
+
+            WriteStep("Warm up knowledge base");
+            Console.WriteLine("Building nutrition index (may take a moment on first launch)...");
+            RunProcess(foundPython,
+                "-c \"import sys; sys.path.insert(0,'" + aiCoreDir + "'); "
+                + "from rag.data_loader import ensure_knowledge_base; "
+                + "import os; "
+                + "xls=os.path.join('" + rootDir + "','data','食材营养.xls'); "
+                + "if os.path.exists(xls): ensure_knowledge_base(xls); print('KB ready') else: print('KB skipped')\"",
+                rootDir);
+            Console.WriteLine("Knowledge base ready.");
 
             var configJsonPath = Path.Combine(serverDir, "Config.json");
             var configExamplePath = Path.Combine(serverDir, "Config.example.json");
@@ -107,6 +125,7 @@ internal static class LauncherProgram
             backendProcess.StartInfo.RedirectStandardError = true;
             backendProcess.StartInfo.EnvironmentVariables["PYTHONUTF8"] = "1";
             backendProcess.StartInfo.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
+            backendProcess.StartInfo.EnvironmentVariables["PIP_INDEX_URL"] = "https://pypi.tuna.tsinghua.edu.cn/simple";
 
             backendProcess.OutputDataReceived += (sender, args) =>
             {

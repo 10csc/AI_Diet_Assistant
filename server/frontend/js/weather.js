@@ -22,9 +22,11 @@ export async function fetchWeather() {
     await saveConfig();
 
     const ak = document.getElementById('weather_ak').value.trim();
+    const hasWeatherEnvKey = state.loadedConfig?.weather_api?.ak === '***';
+    const resolvedAk = ak || (hasWeatherEnvKey ? '***' : '');
     const selectedCity = findSelectedCity();
 
-    if (!ak || !selectedCity) {
+    if (!resolvedAk || !selectedCity) {
         alert('请填写 AK 并选择城市');
         return;
     }
@@ -32,7 +34,7 @@ export async function fetchWeather() {
     renderWeatherResult('正在获取天气...');
 
     try {
-        const url = `/api/weather?district_id=${encodeURIComponent(selectedCity.district_id)}&ak=${encodeURIComponent(ak)}`;
+        const url = `/api/weather?district_id=${encodeURIComponent(selectedCity.district_id)}&ak=${encodeURIComponent(resolvedAk)}`;
         const response = await fetch(url);
         const data = await response.json();
         const weatherResult = data?.result || {};

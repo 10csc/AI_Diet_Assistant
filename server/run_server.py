@@ -20,6 +20,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from urllib import request as urllib_request
 
 # 尝试导入 Flask，如果没有则提示安装
 try:
@@ -170,7 +171,13 @@ def call_python_ai(request_data: dict) -> str:
 
     env = os.environ.copy()
     env["AI_DIET_PRIMARY_API_KEY"] = _resolve_key("primary_api_key", "AI_DIET_PRIMARY_API_KEY")
-    env["AI_DIET_SECONDARY_API_KEY"] = _resolve_key("secondary_api_key", "AI_DIET_SECONDARY_API_KEY")
+    # 二级 Key 未配置时自动复用一级 Key
+    env["AI_DIET_SECONDARY_API_KEY"] = (
+        _resolve_key("secondary_api_key", "AI_DIET_SECONDARY_API_KEY")
+        or env["AI_DIET_PRIMARY_API_KEY"]
+    )
+    # cloudmodel_import.py 兼容：它也读 DEEPSEEK_API_KEY
+    env["DEEPSEEK_API_KEY"] = env["AI_DIET_SECONDARY_API_KEY"]
 
     try:
         result = subprocess.run(
@@ -331,6 +338,26 @@ def api_weather_cities():
                         "display_name": display_name
                     })
     return jsonify({"items": items})
+
+
+@app.route("/api/weather")
+def api_weather():
+    """天气代理：转发到百度天气 API，支持 *** 解析为环境变量"""
+    district_id = request.args.get("district_id", "")
+    ak = request.args.get("ak", "")
+    if ak == "***":
+        ak = os.environ.get("AI_DIET_WEATHER_AK", "")
+    if not district_id or not ak:
+        return jsonify({"status": -1, "message": "缺少 district_id 或 ak"}), 400
+
+    url = (f"https://api.map.baidu.com/weather/v1/"
+           f"?district_id={district_id}&data_type=all&ak={ak}")
+    try:
+        resp = urllib_request.urlopen(url, timeout=10)
+        data = resp.read().decode("utf-8")
+        return app.response_class(data, mimetype="application/json")
+    except Exception as e:
+        return jsonify({"status": -1, "message": str(e)}), 502
 
 
 if __name__ == "__main__":

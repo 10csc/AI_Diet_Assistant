@@ -79,6 +79,11 @@ class _SentenceTransformerEmbeddingFunction:
     _backend_name = ""
     _disabled = False
 
+    # ChromaDB 新版本要求 embedding 函数有 name 属性
+    @property
+    def name(self) -> str:
+        return self.__class__.backend_name()
+
     @classmethod
     def backend_name(cls) -> str:
         """返回当前使用的 embedding 后端名称。"""
