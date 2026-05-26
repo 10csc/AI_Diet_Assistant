@@ -81,12 +81,12 @@ def resolve_request_args(args) -> dict:
         "recipe_profile": payload.get("recipe_profile", []),
     }
 
-    # 环境变量传入 API Key（避免出现在命令行/临时文件中）
+    # 环境变量传入 API Key（仅 deepseek/ollama 类型需要，llamacpp 是本地服务）
     env_primary_key = os.getenv("AI_DIET_PRIMARY_API_KEY", "")
     env_secondary_key = os.getenv("AI_DIET_SECONDARY_API_KEY", "")
-    if env_primary_key and "|" not in resolved["primary_model_id"]:
+    if env_primary_key and "|" not in resolved["primary_model_id"] and not resolved["primary_model_id"].startswith("llamacpp"):
         resolved["primary_model_id"] = f"{resolved['primary_model_id']}|{env_primary_key}"
-    if env_secondary_key and "|" not in resolved["secondary_model_id"]:
+    if env_secondary_key and "|" not in resolved["secondary_model_id"] and not resolved["secondary_model_id"].startswith("llamacpp"):
         resolved["secondary_model_id"] = f"{resolved['secondary_model_id']}|{env_secondary_key}"
 
     if not resolved["user_input"]:
