@@ -102,7 +102,6 @@ export function buildConfigPayload() {
     const secondaryType = document.getElementById('secondary_type').value;
     const selectedCity = findSelectedCity();
 
-    // 如果表单中 API Key 为空（脱敏后显示为空），保留 loadedConfig 中的原始值
     const weatherAkInput = document.getElementById('weather_ak').value.trim();
     const primaryApiKeyInput = document.getElementById('primary_apikey').value.trim();
     const secondaryApiKeyInput = document.getElementById('deepseek_apikey').value.trim();
@@ -110,11 +109,16 @@ export function buildConfigPayload() {
     const originalModels = state.loadedConfig.models || {};
     const originalSecondary = originalModels.secondary || {};
 
+    // 只有用户主动输入时才写入 API Key，否则不传（后端保留旧值）
+    const primaryApiKey = primaryType === 'deepseek' ? (primaryApiKeyInput || undefined) : '';
+    const secondaryApiKey = secondaryApiKeyInput || undefined;
+    const weatherAk = weatherAkInput || undefined;
+
     return {
         ...state.loadedConfig,
         weather_api: {
             ...originalWeatherApi,
-            ak: weatherAkInput || originalWeatherApi.ak || '',
+            ak: weatherAk,
             district_id: selectedCity ? selectedCity.district_id : '',
             city_name: selectedCity ? selectedCity.city_name : '',
             location: selectedCity ? selectedCity.city_name : '',
@@ -127,7 +131,7 @@ export function buildConfigPayload() {
                 ...(originalModels.primary || {}),
                 type: primaryType,
                 model: document.getElementById('primary_model').value.trim(),
-                api_key: primaryType === 'deepseek' ? (primaryApiKeyInput || (originalModels.primary || {}).api_key || '') : ''
+                api_key: primaryApiKey
             },
             llamacpp: {
                 ...(originalModels.llamacpp || {}),
@@ -140,7 +144,7 @@ export function buildConfigPayload() {
                 model: secondaryType === 'deepseek'
                     ? document.getElementById('deepseek_model').value.trim()
                     : document.getElementById('ollama_model').value.trim(),
-                api_key: secondaryApiKeyInput || originalSecondary.api_key || '',
+                api_key: secondaryApiKey,
                 ollama_server: document.getElementById('ollama_server').value.trim()
             }
         },
@@ -193,7 +197,9 @@ function applyConfigToForm(config) {
 
     document.getElementById('primary_type').value = primary.type || 'deepseek';
     document.getElementById('primary_model').value = primary.model || 'deepseek-v4-flash';
-    document.getElementById('primary_apikey').value = primaryApiKey || secondaryApiKey || '';
+    const primaryKeyField = document.getElementById('primary_apikey');
+    primaryKeyField.value = primaryApiKey || '';
+    primaryKeyField.placeholder = primaryApiKey ? 'sk-xxx' : (primary.api_key === '***' ? '*** 已配置，留空则保留' : 'sk-xxx');
     document.getElementById('primary_llamacpp_server').value = llamacpp.server_url || 'http://127.0.0.1:11435';
 
     document.getElementById('use_secondary').checked = Boolean(secondary.enabled);

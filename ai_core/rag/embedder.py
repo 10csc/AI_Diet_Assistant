@@ -68,6 +68,12 @@ def _embed_text_hash(text: str) -> list[float]:
 class _HashEmbeddingFunction:
     """基于哈希的 embedding 函数（兼容 ChromaDB 接口）。"""
 
+    def name(self) -> str:
+        return "hash_fallback"
+
+    def embed_query(self, input: str) -> list[list[float]]:
+        return [_embed_text_hash(input)]
+
     def __call__(self, input: list[str]) -> list[list[float]]:
         return [_embed_text_hash(text) for text in input]
 
@@ -79,8 +85,7 @@ class _SentenceTransformerEmbeddingFunction:
     _backend_name = ""
     _disabled = False
 
-    # ChromaDB 新版本要求 embedding 函数有 name 属性
-    @property
+    # ChromaDB 新版本要求 embedding 函数有 name() 方法
     def name(self) -> str:
         return self.__class__.backend_name()
 
@@ -112,6 +117,10 @@ class _SentenceTransformerEmbeddingFunction:
             )
             cls._backend_name = cls.backend_name()
         return cls._model
+
+    def embed_query(self, input: str) -> list[list[float]]:
+        """ChromaDB 查询时调用：将单条查询编码为向量（返回二维以兼容 Rust 绑定）。"""
+        return self.__call__([input])
 
     def __call__(self, input: list[str]) -> list[list[float]]:
         """将文本列表编码为向量。失败时自动回退到哈希方案。"""
