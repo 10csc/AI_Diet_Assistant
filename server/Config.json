@@ -1,8 +1,36 @@
 {
     "models": {
         "primary": {
+            "api_key": "",
+            "model": "deepseek-v4-flash",
+            "type": "deepseek"
+        },
+        "secondary": {
+            "api_key": "",
+            "enabled": true,
             "type": "deepseek",
-            "model": "deepseek-v4-flash"
+            "model": "deepseek-v4-flash",
+            "ollama_server": "http://localhost:11434"
+        },
+        "llamacpp": {
+            "server_url": "http://127.0.0.1:11435"
         }
+    },
+    "weather_api": {
+        "district_id": "",
+        "city_name": "",
+        "location": "",
+        "base_url": "https://api.map.baidu.com/weather/v1/",
+        "cached_weather": null,
+        "ak": ""
+    },
+    "user_profile": {
+        "age": "20",
+        "gender": "男",
+        "height": "172",
+        "weight": "52",
+        "occupation": "程序员",
+        "taste": "辣，甜",
+        "health": "健康"
     }
 }
