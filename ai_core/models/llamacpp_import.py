@@ -7,6 +7,8 @@ import os
 import logging
 from urllib import error, request
 
+from privacy import blur_profile_text
+
 # 为小模型优化的精简版分析提示词
 _LLAMACPP_PRIMARY_PROMPT = (
     "你是一级营养分析助手。分析用户输入，输出 JSON，不要解释。\n"
@@ -15,7 +17,10 @@ _LLAMACPP_PRIMARY_PROMPT = (
     "其中“需重点关注营养素”“饮食限制”“检索关键词”必须是字符串数组，其余是中文字符串。\n"
     "要求：用户画像摘要必须模糊化隐私——将具体年龄改为年龄段（如20多岁、30多岁），"
     "具体身高体重改为体型描述（如偏瘦、标准、偏胖），不得出现精确数值；"
-    "结合身体状况和饮食诉求分析；硬约束优先于口味。"
+    "结合身体状况和饮食诉求分析；硬约束优先于口味。\n"
+    "健康约束：所有健康相关陈述必须基于公认的常识性营养学知识，"
+    "不得输出未经广泛确认的健康论断、食疗功效或医疗建议。"
+    "不确定的关联宁可不提，不要编造。"
 )
 
 logger = logging.getLogger("diet_assistant")
@@ -111,13 +116,7 @@ def preprocess_with_llamacpp(raw_input: str, model_id: str = "") -> str:
             parsed = json.loads(content)
             profile = parsed.get("用户画像摘要", "")
             if profile:
-                # 模糊化具体年龄：28岁 → 20多岁，35岁 → 30多岁
-                import re as _re
-                profile = _re.sub(r"(\d+)岁", lambda m: str(int(int(m.group(1)) / 10) * 10) + "多岁", profile)
-                # 模糊化具体身高体重：175cm、70kg → 删除精确数值
-                profile = _re.sub(r"身高\d+cm[，,;；]?\s*", "", profile)
-                profile = _re.sub(r"体重\d+kg[，,;；]?\s*", "", profile)
-                parsed["用户画像摘要"] = profile.strip().rstrip("，,;；")
+                parsed["用户画像摘要"] = blur_profile_text(profile)
                 content = json.dumps(parsed, ensure_ascii=False)
         except (json.JSONDecodeError, KeyError, TypeError):
             pass  # 非 JSON 或缺少字段时不处理
@@ -134,3 +133,14 @@ def preprocess_with_llamacpp(raw_input: str, model_id: str = "") -> str:
             f"启动命令参考: llama-server -m 模型路径 -ngl -1 --host 127.0.0.1 --port 11435\n"
             f"详细错误: {exc}"
         ) from exc
+
+
+class LlamaCppProvider:
+    """llama.cpp 模型提供者包装类"""
+
+    @classmethod
+    def key_prefix(cls) -> str:
+        return "llamacpp:"
+
+    def preprocess(self, raw_input: str, model_id: str) -> str:
+        return preprocess_with_llamacpp(raw_input, model_id)

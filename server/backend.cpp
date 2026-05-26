@@ -1,3 +1,7 @@
+// [DEPRECATED] 此 C++ 后端已由 server/run_server.py (Flask) 替代。
+// 保留此文件用于参考，新功能请优先在 Flask 后端中实现。
+// 移除计划：下一大版本迭代时清理。
+
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
@@ -31,6 +35,8 @@ struct ChatRequest {
     std::string weather;
     std::string primary_model_id;
     std::string secondary_model_id;
+    std::string primary_api_key;
+    std::string secondary_api_key;
     std::string conversation_id;
     std::string conversation_title;
     std::string conversation_context;
@@ -259,9 +265,9 @@ RuntimeConfig load_runtime_config() {
     RuntimeConfig runtime;
     runtime.port = 8080;
     runtime.static_dir = "./frontend";
-    runtime.python_script = "../AI_Demo/main.py";
+    runtime.python_script = "../ai_core/main.py";
     runtime.config_path = "Config.json";
-    runtime.logs_dir = "../AI_Demo/logs";
+    runtime.logs_dir = "../ai_core/logs";
     runtime.weather_city_csv = "../weather_district_id.csv";
 
     const std::vector<std::string> roots = build_search_roots();
@@ -641,6 +647,20 @@ bool delete_history_records(
         return false;
     }
 
+    // 验证 log_file 不包含路径遍历字符，且扩展名必须为 .jsonl
+    if (!log_file.empty()) {
+        if (log_file.find("..") != std::string::npos ||
+            log_file.find("/") != std::string::npos ||
+            log_file.find("\\") != std::string::npos) {
+            error_message = "Invalid log_file parameter";
+            return false;
+        }
+        if (log_file.size() < 6 || log_file.substr(log_file.size() - 6) != ".jsonl") {
+            error_message = "Log file must be a .jsonl file";
+            return false;
+        }
+    }
+
     std::vector<std::string> files = list_jsonl_files(logs_dir);
     bool removed = false;
 
@@ -847,6 +867,8 @@ bool parse_chat_request(const std::string& body, ChatRequest& request) {
     extract_json_string(body, "weather", request.weather);
     extract_json_string(body, "primary_model_id", request.primary_model_id);
     extract_json_string(body, "secondary_model_id", request.secondary_model_id);
+    extract_json_string(body, "primary_api_key", request.primary_api_key);
+    extract_json_string(body, "secondary_api_key", request.secondary_api_key);
     extract_json_string(body, "conversation_id", request.conversation_id);
     extract_json_string(body, "conversation_title", request.conversation_title);
     extract_json_string(body, "conversation_context", request.conversation_context);
@@ -895,7 +917,7 @@ std::string build_http_response(
     std::ostringstream oss;
     oss << "HTTP/1.1 " << status << "\r\n";
     oss << "Content-Type: " << content_type << "\r\n";
-    oss << "Access-Control-Allow-Origin: *\r\n";
+    oss << "Access-Control-Allow-Origin: http://localhost:8080\r\n";
     oss << "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n";
     oss << "Access-Control-Allow-Headers: Content-Type\r\n";
     oss << "Content-Length: " << content.size() << "\r\n";
@@ -1226,6 +1248,16 @@ std::string call_python_ai(const ChatRequest& request, const std::string& python
         return build_json_error("Failed to create temporary request file");
     }
 
+    // 通过环境变量传递 API Key，避免出现在命令行参数中
+    const char* env_primary = "AI_DIET_PRIMARY_API_KEY";
+    const char* env_secondary = "AI_DIET_SECONDARY_API_KEY";
+    char old_primary[256] = {0};
+    char old_secondary[256] = {0};
+    GetEnvironmentVariableA(env_primary, old_primary, sizeof(old_primary));
+    GetEnvironmentVariableA(env_secondary, old_secondary, sizeof(old_secondary));
+    SetEnvironmentVariableA(env_primary, request.primary_api_key.c_str());
+    SetEnvironmentVariableA(env_secondary, request.secondary_api_key.c_str());
+
     std::ostringstream command;
     command << "python " << quote_windows_arg(python_script)
             << " --request_file " << quote_windows_arg(request_file_path);
@@ -1236,6 +1268,10 @@ std::string call_python_ai(const ChatRequest& request, const std::string& python
     DWORD exit_code = 0;
     const bool executed = run_process_capture(command.str(), dirname(python_script), output, exit_code);
     DeleteFileA(request_file_path.c_str());
+
+    // 恢复原环境变量值
+    SetEnvironmentVariableA(env_primary, old_primary);
+    SetEnvironmentVariableA(env_secondary, old_secondary);
 
     if (!executed) {
         return build_json_error("Failed to execute Python script");
@@ -1258,6 +1294,25 @@ std::string call_python_ai(const ChatRequest& request, const std::string& python
 
 void send_response(SOCKET client_socket, const std::string& response) {
     send(client_socket, response.c_str(), static_cast<int>(response.size()), 0);
+}
+
+// 简单的滑动窗口速率限制（内存存储，进程重启后清零）
+std::map<std::string, std::vector<time_t>> rate_limit_records;
+
+bool check_rate_limit(const std::string& endpoint, int max_requests, int window_seconds) {
+    time_t now = time(nullptr);
+    std::vector<time_t>& timestamps = rate_limit_records[endpoint];
+    // 清理过期记录
+    timestamps.erase(
+        std::remove_if(timestamps.begin(), timestamps.end(),
+            [now, window_seconds](time_t t) { return now - t > window_seconds; }),
+        timestamps.end()
+    );
+    if (static_cast<int>(timestamps.size()) >= max_requests) {
+        return false;
+    }
+    timestamps.push_back(now);
+    return true;
 }
 
 void handle_request(
@@ -1285,10 +1340,56 @@ void handle_request(
         return;
     }
 
+    // 对 POST 写操作检查 Origin/Referer 头，仅放行 localhost 来源
+    if (method == "POST") {
+        bool has_local_origin = false;
+        const char* origin_patterns[] = {
+            "Origin: http://localhost", "Origin: http://127.0.0.1",
+            "Referer: http://localhost", "Referer: http://127.0.0.1"
+        };
+        for (size_t i = 0; i < sizeof(origin_patterns) / sizeof(origin_patterns[0]); ++i) {
+            if (raw_request.find(origin_patterns[i]) != std::string::npos) {
+                has_local_origin = true;
+                break;
+            }
+        }
+        // 如果没有 Origin/Referer 头（如 curl 直接调用），也放行（本地 CLI 工具场景）
+        bool has_origin_header = raw_request.find("Origin:") != std::string::npos;
+        bool has_referer_header = raw_request.find("Referer:") != std::string::npos;
+        if ((has_origin_header || has_referer_header) && !has_local_origin) {
+            send_response(
+                client_socket,
+                build_http_response(
+                    build_json_error("跨域请求不被允许"),
+                    "application/json; charset=utf-8",
+                    "403 Forbidden"
+                )
+            );
+            return;
+        }
+    }
+
     if (method == "GET") {
         if (route == "/api/config") {
             std::string content;
             if (read_file(config_path, content)) {
+                // 脱敏 api_key 和 ak 字段，避免密钥泄露
+                size_t pos = 0;
+                while ((pos = content.find("\"api_key\": \"", pos)) != std::string::npos) {
+                    pos += 12;  // 跳过 "\"api_key\": \""
+                    size_t end_pos = content.find("\"", pos);
+                    if (end_pos != std::string::npos && end_pos > pos) {
+                        content.replace(pos, end_pos - pos, "***");
+                    }
+                }
+                pos = 0;
+                while ((pos = content.find("\"ak\": \"", pos)) != std::string::npos) {
+                    pos += 7;  // 跳过 "\"ak\": \""
+                    size_t end_pos = content.find("\"", pos);
+                    if (end_pos != std::string::npos && end_pos > pos) {
+                        content.replace(pos, end_pos - pos, "***");
+                    }
+                }
                 send_response(client_socket, build_http_response(content, "application/json; charset=utf-8"));
             } else {
                 send_response(
@@ -1350,6 +1451,19 @@ void handle_request(
     }
 
     if (method == "POST" && route == "/api/chat") {
+        // 速率限制：每分钟最多 6 次请求
+        if (!check_rate_limit("/api/chat", 6, 60)) {
+            send_response(
+                client_socket,
+                build_http_response(
+                    build_json_error("请求过于频繁，请稍后再试"),
+                    "application/json; charset=utf-8",
+                    "429 Too Many Requests"
+                )
+            );
+            return;
+        }
+
         const std::string body = get_request_body(raw_request);
         ChatRequest chat_request;
         if (!parse_chat_request(body, chat_request)) {
@@ -1358,6 +1472,11 @@ void handle_request(
                 build_http_response(build_json_error("Invalid request JSON"), "application/json; charset=utf-8", "400 Bad Request")
             );
             return;
+        }
+
+        // 限制用户输入长度，防止滥用
+        if (chat_request.user_input.size() > 2000) {
+            chat_request.user_input = chat_request.user_input.substr(0, 2000);
         }
 
         const std::string content = call_python_ai(chat_request, python_script);
@@ -1399,6 +1518,22 @@ void handle_request(
                 build_http_response(build_json_error("Invalid config JSON"), "application/json; charset=utf-8", "400 Bad Request")
             );
             return;
+        }
+
+        // 禁止通过 API 修改服务器核心运行参数
+        const char* forbidden_fields[] = {"python_script", "static_dir", "port", "logs_dir"};
+        for (size_t i = 0; i < sizeof(forbidden_fields) / sizeof(forbidden_fields[0]); ++i) {
+            std::string token = "\"" + std::string(forbidden_fields[i]) + "\"";
+            if (body.find(token) != std::string::npos) {
+                send_response(
+                    client_socket,
+                    build_http_response(
+                        build_json_error("禁止通过 API 修改字段: " + std::string(forbidden_fields[i])),
+                        "application/json; charset=utf-8", "400 Bad Request"
+                    )
+                );
+                return;
+            }
         }
 
         if (!write_file(config_path, body)) {

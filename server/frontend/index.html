@@ -18,11 +18,7 @@
             <section class="sidebar-card settings-card">
                 <div class="section-head">
                     <h2>快捷设置</h2>
-                    <div class="section-actions">
-                        <button id="open_history_sidebar" type="button" class="ghost-btn history-open-btn">历史对话</button>
-                        <button id="open_favorites" type="button" class="ghost-btn">收藏</button>
-                        <span class="section-tip">左下角分页切换</span>
-                    </div>
+                    <button id="open_history_sidebar" type="button" class="settings-tab nav-tab">历史对话</button>
                 </div>
                 <div class="settings-tabs">
                     <button type="button" class="settings-tab active" data-panel="weather_panel">天气</button>
@@ -173,10 +169,11 @@
 
         <main class="chat-shell">
             <header class="chat-header">
-                <div>
+                <div class="chat-header-left">
                     <h2>饮食对话</h2>
-                    <p>告诉我你现在的身体状态、天气或想吃什么，我会给出菜单建议。</p>
+                    <p>人工智能回复仅供参考，不构成医疗意见，如有不适请及时就医</p>
                 </div>
+                <button id="open_favorites" type="button" class="ghost-btn chat-header-fav-btn">收藏</button>
             </header>
 
             <section id="chat_messages" class="chat-messages"></section>
@@ -244,6 +241,6 @@
             </div>
         </div>
     </div>
-    <script src="script.js"></script>
+    <script type="module" src="js/app.js"></script>
 </body>
 </html>

@@ -110,17 +110,6 @@ button {
     min-height: 0;
 }
 
-.history-open-btn {
-    color: var(--primary);
-    background: var(--primary-soft);
-    font-weight: 600;
-}
-
-.history-open-btn:hover {
-    background: #e0e7ff;
-    color: var(--primary);
-}
-
 .history-sidebar-card {
     display: grid;
     grid-template-rows: auto auto 1fr;
@@ -434,6 +423,10 @@ button {
 .chat-header {
     border-radius: 24px;
     padding: 22px 24px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
 }
 
 .chat-header h2 {
@@ -444,6 +437,24 @@ button {
 .chat-header p {
     color: var(--muted);
     line-height: 1.6;
+}
+
+.chat-header-fav-btn {
+    flex-shrink: 0;
+    margin-top: 4px;
+    font-size: 0.9rem;
+    padding: 8px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--panel-soft);
+    color: var(--primary);
+    font-weight: 600;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.chat-header-fav-btn:hover {
+    background: var(--primary-soft);
+    border-color: var(--primary);
 }
 
 .chat-messages {

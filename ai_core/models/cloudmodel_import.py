@@ -1,6 +1,7 @@
 import os
 import json
 import re
+from typing import Optional
 from urllib import error, request
 from .prompt_templates import (
     PRIMARY_ANALYSIS_PROMPT,
@@ -222,7 +223,7 @@ def _normalize_side_dishes(candidate_dicts: list, current_value) -> list[dict]:
     return []
 
 
-def _normalize_single_side_dish(item) -> dict | None:
+def _normalize_single_side_dish(item) -> Optional[dict]:
     if isinstance(item, dict):
         name = _coerce_field_value(
             item.get("菜名") or item.get("配菜菜名") or item.get("name") or item.get("dish")
@@ -381,3 +382,17 @@ def _get_default_recommendation() -> dict:
             {"菜名": "香菇豆腐", "食材": "北豆腐、香菇"}
         ]
     }
+
+
+class DeepSeekProvider:
+    """DeepSeek 模型提供者包装类"""
+
+    @classmethod
+    def key_prefix(cls) -> str:
+        return "deepseek:"
+
+    def preprocess(self, raw_input: str, model_id: str) -> str:
+        return preprocess_with_deepseek(raw_input, model_id)
+
+    def get_recommendation(self, prompt: str, model_id: str) -> dict:
+        return get_diet_recommendation(prompt, model_id)

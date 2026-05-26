@@ -1,5 +1,4 @@
-# ---- 真实配置文件（含密钥占位符提交，实���密钥仅本地配置） ----
-# 注意：Config.json 应提交模板（密钥用占位符），不应提交真实密钥
+# ---- 配置文件（密钥用环境变量，Config.json 提交空值模板） ----
 
 # ---- 日志文件（含用户隐私数据） ----
 logs/
@@ -13,6 +12,9 @@ ai_diet_env/
 _env/
 .venv/
 venv/
+Lib/
+Scripts/
+pyvenv.cfg
 
 # ---- 编译中间产物 ----
 build/
@@ -27,14 +29,20 @@ __pycache__/
 llamacpp_bin/
 启动项目.exe
 launcher/启动项目.exe
-*.exe
 !server/bin/backend.exe
+
+# ---- 启动脚本（含本地绝对路径） ----
+start_llama_server.bat
+
+# ---- 用户数据（运行时生成，不进版本控制） ----
+data/favorites.json
+data/recipe_profile.json
 
 # ---- 临时代码/调试 ----
 信息记录.txt
 image.png
 
-# ---- 不相关的参考文档（非项目文件） ----
+# ---- 不相关的参考文档 ----
 关于航拍无人机多尺度目标检测的思考.docx
 
 # ---- IDE / 系统 ----
@@ -48,3 +56,4 @@ Thumbs.db
 
 # ---- AI 助手行为配置（本地文件，不进版本控制） ----
 CLAUDE.md
+.claude/

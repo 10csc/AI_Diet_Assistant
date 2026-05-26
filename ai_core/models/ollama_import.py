@@ -57,3 +57,19 @@ def preprocess_with_ollama(raw_input: str, model_id: str) -> str:
         raise RuntimeError(f"Ollama 请求失败: {exc}") from exc
 
     return full_response.strip()
+
+
+class OllamaProvider:
+    """Ollama 模型提供者包装类"""
+
+    @classmethod
+    def key_prefix(cls) -> str:
+        return "ollama:"
+
+    def preprocess(self, raw_input: str, model_id: str) -> str:
+        return preprocess_with_ollama(raw_input, model_id)
+
+    def get_recommendation(self, prompt: str, model_id: str) -> dict:
+        # Ollama 二级模型通过 cloudmodel_import 处理
+        from .cloudmodel_import import get_diet_recommendation
+        return get_diet_recommendation(prompt, model_id)
