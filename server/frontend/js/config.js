@@ -251,10 +251,12 @@ export function buildPersonalInfoPayload() {
 export function checkFirstRun() {
     const deepseekKey = document.getElementById('deepseek_apikey').value.trim();
     const weatherAk = document.getElementById('weather_ak').value.trim();
-    const isFirstRun = !deepseekKey || deepseekKey === 'your_deepseek_api_key_here'
-        || !weatherAk || weatherAk === 'your_baidu_api_key_here';
+    const hasEnvKey = state.loadedConfig?.models?.primary?.api_key === '***';
+    const hasEnvWeather = state.loadedConfig?.weather_api?.ak === '***';
 
-    if (isFirstRun) {
+    const keyMissing = !hasEnvKey && (!deepseekKey || deepseekKey === 'your_deepseek_api_key_here');
+    const weatherMissing = !hasEnvWeather && (!weatherAk || weatherAk === 'your_baidu_api_key_here');
+    if (keyMissing || weatherMissing) {
         const overlay = document.getElementById('setup_overlay');
         if (overlay) overlay.style.display = 'flex';
     }
