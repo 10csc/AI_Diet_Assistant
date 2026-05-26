@@ -106,8 +106,8 @@ internal static class LauncherProgram
                 + "from rag.data_loader import ensure_knowledge_base; "
                 + "xls='" + pyRoot + "/data/食材营养.xls'; "
                 + "import os; "
-                + "if os.path.exists(xls): ensure_knowledge_base(xls); print('KB ready') "
-                + "else: print('KB skipped')\"",
+                + "(ensure_knowledge_base(xls), print('KB ready')) "
+                + "if os.path.exists(xls) else print('KB skipped')\"",
                 rootDir);
             Console.WriteLine("Knowledge base ready.");
 
